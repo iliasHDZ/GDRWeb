@@ -1,37 +1,42 @@
 import { RenderContext } from './context/context'
 import { ObjectCollection } from './render/object-collection';
+import { Texture } from './render/texture';
 import { Color } from './util/color';
 import { Mat3 } from './util/mat3';
 import { Vec2 } from './util/vec2';
+import { GDObjectData } from './object/object-data'
+
+import objectDataList from '../assets/data.json';
+import { GDLevel } from './level';
+import { Camera } from './camera';
 
 export class GDRWebRenderer {
     ctx: RenderContext;
 
-    col: ObjectCollection;
+    sheet: Texture;
 
-    constructor(ctx: RenderContext) {
+    camera: Camera;
+
+    objectData: {};
+
+    constructor(ctx: RenderContext, sheetpath: string) {
         this.ctx = ctx;
 
-        this.col = new ObjectCollection(this.ctx);
+        this.sheet = new Texture(ctx);
+        this.sheet.load(sheetpath);
 
-        for (let i = 0; i < 100; i++) {
-            let m = new Mat3();
+        this.objectData = GDObjectData.fromObjectDataList(objectDataList);
 
-            m.rotate(Math.random() * 2 * Math.PI);
-            m.translate(new Vec2(Math.random() * 400 - 200, Math.random() * 400 - 200));
-            m.scale(new Vec2(30, 30));
-
-            this.col.add(m, Color.fromRGBA(255, 255, 255, 128));
-        }
-
-        this.col.compile();
+        this.camera = new Camera(0, 0);
     }
 
-    render() {
+    render(level: GDLevel) {
         this.ctx.clearColor(
-            Color.fromRGB(255, 0, 0)
+            Color.fromRGB(0, 0, 128)
         );
 
-        this.ctx.render(this.col);
+        this.ctx.setViewMatrix(this.camera.getMatrix(this.ctx.canvas.width, this.ctx.canvas.height));
+
+        this.ctx.render(level.level_col);
     }
 }

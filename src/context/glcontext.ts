@@ -5,18 +5,23 @@ import { ShaderProgram } from './webgl2/program';
 import { VertexBuffer } from './webgl2/buffer';
 import { Mat3 } from '../util/mat3';
 import { Vec2 } from '../util/vec2';
+import { SpriteCrop } from '../util/spritecrop';
 
 const VERT_SOURCE = `#version 300 es
 
 in vec2 aPos;
 in vec4 aCol;
+in vec2 aTex;
 
 uniform mat3 uView;
 
 out vec4 oCol;
+out vec2 oTex;
 
 void main() {
     oCol = aCol;
+    oTex = aTex;
+
     gl_Position = vec4(uView * vec3(aPos, 1), 1);
 }
 `;
@@ -26,10 +31,15 @@ const FRAG_SOURCE = `#version 300 es
 precision highp float;
 
 out vec4 outColor;
-in vec4 oCol;
+
+in  vec4 oCol;
+in  vec2 oTex;
+
+uniform sampler2D uTexture;
 
 void main() {
-    outColor = vec4(oCol.xyz, 0.5);
+    outColor = texture(uTexture, oTex / vec2(textureSize(uTexture, 0))) * oCol;
+    //outColor = texture(uTexture, oTex);
 }
 `;
 
@@ -51,14 +61,8 @@ export class WebGLContext extends RenderContext {
         this.init();
     }
 
-    resize() {
+    setViewMatrix(view: Mat3) {
         this.program.use();
-
-        let view = new Mat3();
-        let w = this.canvas.width, h = this.canvas.height;
-
-        view.scale( new Vec2(2 / w, 2 / h) );
-
         this.program.uMat3('uView', view);
     }
 
@@ -66,8 +70,8 @@ export class WebGLContext extends RenderContext {
         let gl = this.gl;
         let p  = new ShaderProgram(gl);
 
-        p.shader(gl.VERTEX_SHADER,   VERT_SOURCE);
-        p.shader(gl.FRAGMENT_SHADER, FRAG_SOURCE);
+        p.loadShader(gl.VERTEX_SHADER,   VERT_SOURCE);
+        p.loadShader(gl.FRAGMENT_SHADER, FRAG_SOURCE);
 
         p.link();
 
@@ -75,9 +79,6 @@ export class WebGLContext extends RenderContext {
         gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ZERO);
 
         this.program = p;
-
-        this.canvas.addEventListener('resize', () => this.resize());
-        this.resize();
     }
 
     clearColor(c: Color) {
@@ -87,7 +88,37 @@ export class WebGLContext extends RenderContext {
         gl.clear(gl.COLOR_BUFFER_BIT);
     }
 
-    genQuad(m: Mat3, c: Color): number[] {
+    loadTexture(img: HTMLImageElement) {
+        let gl = this.gl;
+
+        let t = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, t);
+        
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+
+        /*gl.texImage2D(
+            gl.TEXTURE_2D,
+            0,
+            gl.RGBA,
+            gl.RGBA,
+            gl.UNSIGNED_BYTE,
+            img
+        );*/
+
+        document.getElementsByTagName("body")[0].appendChild(img);
+
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+
+        //gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE,
+        //    new Uint8Array([0, 0, 255, 255, 255, 0, 0, 255, 0, 0, 255, 255, 255, 0, 0, 255]));
+
+        return t;
+    }
+
+    genQuad(m: Mat3, c: Color, s: SpriteCrop): number[] {
         let r = [];
 
         let q = [
@@ -99,9 +130,24 @@ export class WebGLContext extends RenderContext {
             new Vec2( -0.5, -0.5 )
         ];
 
-        for (let v of q) {
-            r.push(...m.transform(v).buffer());
-            r.push(...c.buffer())
+        let t_l = s.x,
+            t_r = s.x + s.w,
+            t_t = s.y,
+            t_b = s.y + s.h;
+
+        let t = [
+            new Vec2( t_l, t_b ),
+            new Vec2( t_l, t_t ),
+            new Vec2( t_r, t_t ),
+            new Vec2( t_r, t_t ),
+            new Vec2( t_r, t_b ),
+            new Vec2( t_l, t_b )
+        ];
+
+        for (let i = 0; i < q.length; i++) {
+            r.push(...m.transform(q[i]).buffer());
+            r.push(...c.buffer());
+            r.push(...t[i].buffer());
         }
 
         return r;
@@ -115,14 +161,17 @@ export class WebGLContext extends RenderContext {
 
         for (let o of c.objects) {
             s += 6;
-            d.push(...this.genQuad(o.model, o.color));
+            d.push(...this.genQuad(o.model, o.color, o.sprite));
         }
+
+        const stride = 8 * 4; // [pos_x], [pos_y], [col_r], [col_g], [col_b], [col_a], [tex_u], [tex_v]
 
         let b  = new VertexBuffer(this.gl, d);
         b.size = s;
 
-        b.attribute(p.attrib('aPos'), 2, 0, 6 * 4);
-        b.attribute(p.attrib('aCol'), 4, 2 * 4, 6 * 4);
+        b.attribute(p.attrib('aPos'), 2, 0,     stride);
+        b.attribute(p.attrib('aCol'), 4, 2 * 4, stride);
+        b.attribute(p.attrib('aTex'), 2, 6 * 4, stride);
         
         return b;
     }
@@ -133,6 +182,10 @@ export class WebGLContext extends RenderContext {
         this.program.use();
         c.buffer.use();
 
-        gl.drawArrays(gl.TRIANGLES, 0, c.buffer.size);
+        if (c.texture.loaded) {
+            gl.bindTexture(gl.TEXTURE_2D, c.texture.texture);
+
+            gl.drawArrays(gl.TRIANGLES, 0, c.buffer.size);
+        }
     }
 }

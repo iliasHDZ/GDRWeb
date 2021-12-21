@@ -13,7 +13,7 @@ export class ShaderProgram {
         this.gl = gl;
     }
 
-    shader(type: number, source: string) {
+    loadShader(type: number, source: string) {
         let gl = this.gl;
         let s = gl.createShader(type);
 
@@ -74,6 +74,10 @@ export class ShaderProgram {
 
     uMat3(name: string, m: Mat3) {
         this.gl.uniformMatrix3fv(this.uniform(name), false, new Float32Array(m.buffer()));
+    }
+
+    uInteger(name: string, i: number) {
+        this.gl.uniform1i(this.uniform(name), i);
     }
 
     use() {

@@ -1,12 +1,15 @@
 import { Mat3 } from "../util/mat3";
 import { Color } from "../util/color";
+import { SpriteCrop } from "../util/spritecrop";
 
 export class TextureObject {
     public model: Mat3;
     public color: Color;
+    public sprite: SpriteCrop;
 
-    constructor(model: Mat3, color: Color) {
-        this.model = model;
-        this.color = color;
+    constructor(model: Mat3, color: Color, sprite: SpriteCrop) {
+        this.model  = model;
+        this.color  = color;
+        this.sprite = sprite;
     }
 }
