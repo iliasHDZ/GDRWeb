@@ -99,21 +99,14 @@ export class WebGLContext extends RenderContext {
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
 
-        /*gl.texImage2D(
+        gl.texImage2D(
             gl.TEXTURE_2D,
             0,
             gl.RGBA,
             gl.RGBA,
             gl.UNSIGNED_BYTE,
             img
-        );*/
-
-        document.getElementsByTagName("body")[0].appendChild(img);
-
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
-
-        //gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE,
-        //    new Uint8Array([0, 0, 255, 255, 255, 0, 0, 255, 0, 0, 255, 255, 255, 0, 0, 255]));
+        );
 
         return t;
     }

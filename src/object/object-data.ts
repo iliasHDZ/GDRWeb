@@ -1,6 +1,6 @@
 import { SpriteCrop } from "../util/spritecrop";
 
-enum ZLayer {
+export enum ZLayer {
     B4,
     B3,
     B2,

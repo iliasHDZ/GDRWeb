@@ -18,8 +18,6 @@ export class Texture {
         let img = new Image();
 
         let tex = this;
-        
-        console.log("LOADING IMAGE!");
 
         img.src = path;
         img.onload = () => {
@@ -29,9 +27,6 @@ export class Texture {
             tex.height = img.height;
 
             tex.loaded = true;
-
-            console.log("IMAGE LOADED!");
-            console.log(tex.texture);
         }
     }
 }

@@ -12076,18 +12076,7 @@ class WebGLContext extends context_1.RenderContext {
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-        /*gl.texImage2D(
-            gl.TEXTURE_2D,
-            0,
-            gl.RGBA,
-            gl.RGBA,
-            gl.UNSIGNED_BYTE,
-            img
-        );*/
-        document.getElementsByTagName("body")[0].appendChild(img);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
-        //gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE,
-        //    new Uint8Array([0, 0, 255, 255, 255, 0, 0, 255, 0, 0, 255, 255, 255, 0, 0, 255]));
         return t;
     }
     genQuad(m, c, s) {
@@ -12242,6 +12231,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.GDLevel = void 0;
 const object_1 = require("./object/object");
 const object_collection_1 = require("./render/object-collection");
+const renderer_1 = require("./renderer");
 const color_1 = require("./util/color");
 const mat3_1 = require("./util/mat3");
 const vec2_1 = require("./util/vec2");
@@ -12263,30 +12253,44 @@ class GDLevel {
         level.init();
         return level;
     }
+    getModelMatrix(o) {
+        let def = renderer_1.GDRWebRenderer.objectData[o.id];
+        if (!def)
+            return;
+        let m = new mat3_1.Mat3();
+        let sx = def.width / 62 * 30, sy = def.height / 62 * 30;
+        sx *= o.xflip ? -1 : 1;
+        sy *= o.yflip ? -1 : 1;
+        m.translate(new vec2_1.Vec2(o.x, o.y));
+        if (o.rotation != 0)
+            m.rotate((-o.rotation) * Math.PI / 180);
+        m.scale(new vec2_1.Vec2(sx, sy));
+        return m;
+    }
+    addTexture(obj, s) {
+        this.level_col.add(this.getModelMatrix(obj), color_1.Color.fromRGB(255, 255, 255), s);
+    }
     init() {
-        let col = new object_collection_1.ObjectCollection(this.renderer.ctx, this.renderer.sheet);
-        for (let o of this.data) {
-            let def = this.renderer.objectData[o.id];
+        this.level_col = new object_collection_1.ObjectCollection(this.renderer.ctx, this.renderer.sheet);
+        let data = [];
+        for (let o of this.data)
+            data.push(o);
+        data.sort(object_1.GDObject.compareZOrder);
+        for (let o of data) {
+            let def = renderer_1.GDRWebRenderer.objectData[o.id];
             if (!def)
                 continue;
-            let m = new mat3_1.Mat3();
-            m.translate(new vec2_1.Vec2(o.x, o.y));
-            m.scale(new vec2_1.Vec2(def.width / 62 * 30, def.height / 62 * 30));
-            col.add(m, color_1.Color.fromRGB(255, 255, 255), def.baseSprite);
-            if (def.detailSprite) {
-                m = new mat3_1.Mat3();
-                m.translate(new vec2_1.Vec2(o.x, o.y));
-                m.scale(new vec2_1.Vec2(def.width / 62 * 30, def.height / 62 * 30));
-                col.add(m, color_1.Color.fromRGB(255, 255, 255), def.detailSprite);
-            }
+            if (def.baseSprite)
+                this.addTexture(o, def.baseSprite);
+            if (def.detailSprite)
+                this.addTexture(o, def.baseSprite);
         }
-        col.compile();
-        this.level_col = col;
+        this.level_col.compile();
     }
 }
 exports.GDLevel = GDLevel;
 
-},{"./object/object":10,"./render/object-collection":11,"./util/color":15,"./util/mat3":16,"./util/vec2":18}],8:[function(require,module,exports){
+},{"./object/object":10,"./render/object-collection":11,"./renderer":14,"./util/color":15,"./util/mat3":16,"./util/vec2":18}],8:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.WebGLContext = exports.GDLevel = exports.GDRWebRenderer = void 0;
@@ -12300,7 +12304,7 @@ Object.defineProperty(exports, "WebGLContext", { enumerable: true, get: function
 },{"./context/glcontext":4,"./level":7,"./renderer":14}],9:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.GDObjectData = void 0;
+exports.GDObjectData = exports.ZLayer = void 0;
 const spritecrop_1 = require("../util/spritecrop");
 var ZLayer;
 (function (ZLayer) {
@@ -12311,7 +12315,7 @@ var ZLayer;
     ZLayer[ZLayer["T1"] = 4] = "T1";
     ZLayer[ZLayer["T2"] = 5] = "T2";
     ZLayer[ZLayer["T3"] = 6] = "T3";
-})(ZLayer || (ZLayer = {}));
+})(ZLayer = exports.ZLayer || (exports.ZLayer = {}));
 class GDObjectData {
     constructor() {
         this.baseSprite = null;
@@ -12361,6 +12365,8 @@ exports.GDObjectData = GDObjectData;
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.GDObject = void 0;
+const renderer_1 = require("../renderer");
+const object_data_1 = require("./object-data");
 class GDObject {
     static parse(data, type, def) {
         if (!data)
@@ -12371,20 +12377,42 @@ class GDObject {
             default: return def;
         }
     }
+    static getZLayerValue(z) {
+        switch (z) {
+            case -3: object_data_1.ZLayer.B4;
+            case -1: object_data_1.ZLayer.B3;
+            case 1: object_data_1.ZLayer.B2;
+            case 3: object_data_1.ZLayer.B1;
+            case 5: object_data_1.ZLayer.T1;
+            case 7: object_data_1.ZLayer.T2;
+            case 9: object_data_1.ZLayer.T3;
+            default: return null;
+        }
+    }
     static fromLevelData(data) {
         let o = new GDObject();
         o.id = this.parse(data[1], 'number', 1);
         o.x = this.parse(data[2], 'number', 0);
         o.y = this.parse(data[3], 'number', 0);
-        o.hflip = this.parse(data[4], 'boolean', false);
-        o.vflip = this.parse(data[5], 'boolean', false);
+        o.xflip = this.parse(data[4], 'boolean', false);
+        o.yflip = this.parse(data[5], 'boolean', false);
         o.rotation = this.parse(data[6], 'number', 0);
+        let def = renderer_1.GDRWebRenderer.objectData[o.id];
+        if (def) {
+            o.zorder = this.parse(data[25], 'number', def.zorder);
+            o.zlayer = this.getZLayerValue(data[26]) || def.zlayer;
+        }
         return o;
+    }
+    static compareZOrder(o1, o2) {
+        if (o1.zlayer != o2.zlayer)
+            return o1.zlayer - o2.zlayer;
+        return o1.zorder - o2.zorder;
     }
 }
 exports.GDObject = GDObject;
 
-},{}],11:[function(require,module,exports){
+},{"../renderer":14,"./object-data":9}],11:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ObjectCollection = void 0;
@@ -12429,15 +12457,12 @@ class Texture {
     load(path) {
         let img = new Image();
         let tex = this;
-        console.log("LOADING IMAGE!");
         img.src = path;
         img.onload = () => {
             tex.texture = tex.ctx.loadTexture(img);
             tex.width = img.width;
             tex.height = img.height;
             tex.loaded = true;
-            console.log("IMAGE LOADED!");
-            console.log(tex.texture);
         };
     }
 }
@@ -12460,7 +12485,6 @@ class GDRWebRenderer {
         this.ctx = ctx;
         this.sheet = new texture_1.Texture(ctx);
         this.sheet.load(sheetpath);
-        this.objectData = object_data_1.GDObjectData.fromObjectDataList(data_json_1.default);
         this.camera = new camera_1.Camera(0, 0);
     }
     render(level) {
@@ -12470,6 +12494,7 @@ class GDRWebRenderer {
     }
 }
 exports.GDRWebRenderer = GDRWebRenderer;
+GDRWebRenderer.objectData = object_data_1.GDObjectData.fromObjectDataList(data_json_1.default);
 
 },{"../assets/data.json":1,"./camera":2,"./object/object-data":9,"./render/texture":13,"./util/color":15}],15:[function(require,module,exports){
 "use strict";

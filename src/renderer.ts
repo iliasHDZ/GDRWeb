@@ -17,15 +17,13 @@ export class GDRWebRenderer {
 
     camera: Camera;
 
-    objectData: {};
+    static objectData = GDObjectData.fromObjectDataList(objectDataList);
 
     constructor(ctx: RenderContext, sheetpath: string) {
         this.ctx = ctx;
 
         this.sheet = new Texture(ctx);
         this.sheet.load(sheetpath);
-
-        this.objectData = GDObjectData.fromObjectDataList(objectDataList);
 
         this.camera = new Camera(0, 0);
     }
