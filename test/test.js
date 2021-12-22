@@ -16,8 +16,8 @@ window.onload = () => {
 
     document.onmousemove = (e) => {
         if (drag) {
-            renderer.camera.x += e.movementX;
-            renderer.camera.y -= e.movementY;
+            renderer.camera.x += e.movementX / renderer.camera.zoom;
+            renderer.camera.y -= e.movementY / renderer.camera.zoom;
 
             renderer.render(level);
         }
@@ -25,6 +25,14 @@ window.onload = () => {
 
     canvas.onmousedown = () => {
         drag = true;
+    }
+
+    canvas.onwheel = (e) => {
+        console.log(e.deltaY);
+
+        renderer.camera.zoom *= 1 - (e.deltaY / 1000);
+
+        renderer.render(level);
     }
 
     document.onmouseup = () => {

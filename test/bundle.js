@@ -11976,20 +11976,21 @@ exports.Camera = void 0;
 const mat3_1 = require("./util/mat3");
 const vec2_1 = require("./util/vec2");
 class Camera {
-    constructor(x, y) {
+    constructor(x, y, zoom) {
         this.x = x;
         this.y = y;
+        this.zoom = zoom;
     }
     getMatrix(width, height) {
         let m = new mat3_1.Mat3();
-        m.scale(new vec2_1.Vec2(2 / width, 2 / height));
+        m.scale(new vec2_1.Vec2(2 / width * this.zoom, 2 / height * this.zoom));
         m.translate(new vec2_1.Vec2(this.x, this.y));
         return m;
     }
 }
 exports.Camera = Camera;
 
-},{"./util/mat3":16,"./util/vec2":18}],3:[function(require,module,exports){
+},{"./util/mat3":17,"./util/vec2":19}],3:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.RenderContext = void 0;
@@ -12004,21 +12005,27 @@ exports.WebGLContext = void 0;
 const context_1 = require("./context");
 const program_1 = require("./webgl2/program");
 const buffer_1 = require("./webgl2/buffer");
+const buffer_array_1 = require("./webgl2/buffer-array");
+const mat3_1 = require("../util/mat3");
 const vec2_1 = require("../util/vec2");
 const VERT_SOURCE = `#version 300 es
 
 in vec2 aPos;
-in vec4 aCol;
+
 in vec2 aTex;
+in vec4 aCol;
+in vec4 aSCp;
 
 uniform mat3 uView;
 
-out vec4 oCol;
 out vec2 oTex;
+out vec4 oCol;
+out vec4 oSCp;
 
 void main() {
-    oCol = aCol;
     oTex = aTex;
+    oCol = aCol;
+    oSCp = aSCp;
 
     gl_Position = vec4(uView * vec3(aPos, 1), 1);
 }
@@ -12029,13 +12036,24 @@ precision highp float;
 
 out vec4 outColor;
 
-in  vec4 oCol;
 in  vec2 oTex;
+in  vec4 oCol;
+
+in  vec4 oSCp;
 
 uniform sampler2D uTexture;
 
 void main() {
-    outColor = texture(uTexture, oTex / vec2(textureSize(uTexture, 0))) * oCol;
+    float cor = 0.5;
+
+    vec2 texPos = vec2(max(min(oTex.x, oSCp.z - cor), oSCp.x + cor), max(min(oTex.y, oSCp.w - cor), oSCp.y + cor));
+
+    vec2 texCoords = texPos / vec2(textureSize(uTexture, 0));
+    vec4 texFrag   = texture(uTexture, texCoords);
+
+    //outColor = vec4(1.0, 0.5, 0.5, 1.0);
+
+    outColor = vec4(texFrag.xyz / texFrag.w, texFrag.w) * oCol;
     //outColor = texture(uTexture, oTex);
 }
 `;
@@ -12044,7 +12062,7 @@ class WebGLContext extends context_1.RenderContext {
         super();
         this.canvas = canvas;
         this.gl = canvas.getContext('webgl2', {
-            premultipliedAlpha: false,
+            premultipliedAlpha: true,
             alpha: false
         });
         this.init();
@@ -12059,8 +12077,18 @@ class WebGLContext extends context_1.RenderContext {
         p.loadShader(gl.VERTEX_SHADER, VERT_SOURCE);
         p.loadShader(gl.FRAGMENT_SHADER, FRAG_SOURCE);
         p.link();
+        const quad = [
+            -0.5, -0.5,
+            -0.5, 0.5,
+            0.5, 0.5,
+            0.5, 0.5,
+            0.5, -0.5,
+            -0.5, -0.5
+        ];
+        this.quad = new buffer_1.BufferObject(gl, quad);
         gl.enable(gl.BLEND);
-        gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ZERO);
+        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+        //gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ZERO);
         this.program = p;
     }
     clearColor(c) {
@@ -12074,8 +12102,8 @@ class WebGLContext extends context_1.RenderContext {
         gl.bindTexture(gl.TEXTURE_2D, t);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
         gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
         return t;
     }
@@ -12102,66 +12130,116 @@ class WebGLContext extends context_1.RenderContext {
             r.push(...m.transform(q[i]).buffer());
             r.push(...c.buffer());
             r.push(...t[i].buffer());
+            r.push(t_l, t_t, t_r, t_b);
         }
+        return r;
+    }
+    genInstance(m, c, s) {
+        let r = [];
+        let a = new mat3_1.Mat3();
+        a.scale(new vec2_1.Vec2(30, 30));
+        r.push(...a.buffer());
+        //r.push(s.x, s.y, s.w, s.h);
+        //r.push(...c.buffer());
         return r;
     }
     compileObjects(c) {
         let p = this.program;
         let d = [];
-        let s = 0;
-        for (let o of c.objects) {
-            s += 6;
+        for (let o of c.objects)
             d.push(...this.genQuad(o.model, o.color, o.sprite));
-        }
-        const stride = 8 * 4; // [pos_x], [pos_y], [col_r], [col_g], [col_b], [col_a], [tex_u], [tex_v]
-        let b = new buffer_1.VertexBuffer(this.gl, d);
-        b.size = s;
-        b.attribute(p.attrib('aPos'), 2, 0, stride);
-        b.attribute(p.attrib('aCol'), 4, 2 * 4, stride);
-        b.attribute(p.attrib('aTex'), 2, 6 * 4, stride);
-        return b;
+        console.log(d);
+        const stride = 12 * 4; // [pos_x], [pos_y], [col_r], [col_g], [col_b], [col_a], [tex_u], [tex_v], [scp_l], [scp_t], [scp_r], [scp_b]
+        let b = new buffer_1.BufferObject(this.gl, d);
+        let a = new buffer_array_1.BufferArray(this.gl);
+        a.add(p.attrib('aPos'), b, 2, 0, stride);
+        a.add(p.attrib('aCol'), b, 4, 2 * 4, stride);
+        a.add(p.attrib('aTex'), b, 2, 6 * 4, stride);
+        a.add(p.attrib('aSCp'), b, 4, 8 * 4, stride);
+        return {
+            count: c.objects.length * 6,
+            array: a
+        };
+        /*let p = this.program;
+        let d = [];
+
+        for (let o of c.objects)
+            d.push(...this.genInstance(o.model, o.color, o.sprite));
+
+        console.log(d);
+
+        const stride = 9 * 4; // [model_mat] * 9, [tex_x], [tex_y], [tex_w], [tex_h], [col_r], [col_g], [col_b], [col_a]
+
+        let b = new BufferObject(this.gl, d);
+        let a = new BufferArray(this.gl);
+
+        a.add(p.attrib("aPos"), this.quad, 2, 0, 2 * 4);
+
+        a.add(p.attrib('aMod'), b, 3, 0,      stride, 1);
+        //a.add(p.attrib('aTex'), b, 4, 9 * 4,  stride, 1);
+        //a.add(p.attrib('aCol'), b, 4, 13 * 4, stride, 1);
+
+        return {
+            ins_count: c.objects.length,
+            buffer_array: a
+        };*/
     }
     render(c) {
         let gl = this.gl;
         this.program.use();
-        c.buffer.use();
+        c.buffer.array.use();
         if (c.texture.loaded) {
             gl.bindTexture(gl.TEXTURE_2D, c.texture.texture);
-            gl.drawArrays(gl.TRIANGLES, 0, c.buffer.size);
+            gl.drawArrays(gl.TRIANGLES, 0, c.buffer.count);
         }
     }
 }
 exports.WebGLContext = WebGLContext;
 
-},{"../util/vec2":18,"./context":3,"./webgl2/buffer":5,"./webgl2/program":6}],5:[function(require,module,exports){
+},{"../util/mat3":17,"../util/vec2":19,"./context":3,"./webgl2/buffer":6,"./webgl2/buffer-array":5,"./webgl2/program":7}],5:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.VertexBuffer = void 0;
-class VertexBuffer {
+exports.BufferArray = void 0;
+class BufferArray {
+    constructor(gl) {
+        this.size = 0;
+        this.gl = gl;
+        this.vao = gl.createVertexArray();
+    }
+    add(location, buffer, size, offset, stride, divisor = 0) {
+        if (location == -1)
+            return;
+        let gl = this.gl;
+        gl.bindBuffer(gl.ARRAY_BUFFER, buffer.vbo);
+        gl.bindVertexArray(this.vao);
+        gl.enableVertexAttribArray(location);
+        gl.vertexAttribPointer(location, size, gl.FLOAT, false, stride, offset);
+        if (divisor != 0)
+            gl.vertexAttribDivisor(location, divisor);
+    }
+    use() {
+        let gl = this.gl;
+        gl.bindVertexArray(this.vao);
+    }
+}
+exports.BufferArray = BufferArray;
+
+},{}],6:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.BufferObject = void 0;
+class BufferObject {
     constructor(gl, data) {
         this.size = 0;
         this.gl = gl;
         this.vbo = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo);
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
-        this.vao = gl.createVertexArray();
-    }
-    attribute(location, size, offset, stride) {
-        let gl = this.gl;
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo);
-        gl.bindVertexArray(this.vao);
-        gl.enableVertexAttribArray(location);
-        gl.vertexAttribPointer(location, size, gl.FLOAT, false, stride, offset);
-    }
-    use() {
-        let gl = this.gl;
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo);
-        gl.bindVertexArray(this.vao);
     }
 }
-exports.VertexBuffer = VertexBuffer;
+exports.BufferObject = BufferObject;
 
-},{}],6:[function(require,module,exports){
+},{}],7:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ShaderProgram = void 0;
@@ -12204,6 +12282,7 @@ class ShaderProgram {
             return this.attribs[name];
         let l = this.gl.getAttribLocation(this.program, name);
         this.attribs[name] = l;
+        console.log(name, l);
         return l;
     }
     uniform(name) {
@@ -12211,10 +12290,14 @@ class ShaderProgram {
             return this.uniforms[name];
         let l = this.gl.getUniformLocation(this.program, name);
         this.uniforms[name] = l;
+        console.log(name, l);
         return l;
     }
     uMat3(name, m) {
         this.gl.uniformMatrix3fv(this.uniform(name), false, new Float32Array(m.buffer()));
+    }
+    uVec2(name, v) {
+        this.gl.uniform2fv(this.uniform(name), new Float32Array(v.buffer()));
     }
     uInteger(name, i) {
         this.gl.uniform1i(this.uniform(name), i);
@@ -12225,7 +12308,7 @@ class ShaderProgram {
 }
 exports.ShaderProgram = ShaderProgram;
 
-},{}],7:[function(require,module,exports){
+},{}],8:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.GDLevel = void 0;
@@ -12290,7 +12373,7 @@ class GDLevel {
 }
 exports.GDLevel = GDLevel;
 
-},{"./object/object":10,"./render/object-collection":11,"./renderer":14,"./util/color":15,"./util/mat3":16,"./util/vec2":18}],8:[function(require,module,exports){
+},{"./object/object":11,"./render/object-collection":12,"./renderer":15,"./util/color":16,"./util/mat3":17,"./util/vec2":19}],9:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.WebGLContext = exports.GDLevel = exports.GDRWebRenderer = void 0;
@@ -12301,7 +12384,7 @@ Object.defineProperty(exports, "GDLevel", { enumerable: true, get: function () {
 const glcontext_1 = require("./context/glcontext");
 Object.defineProperty(exports, "WebGLContext", { enumerable: true, get: function () { return glcontext_1.WebGLContext; } });
 
-},{"./context/glcontext":4,"./level":7,"./renderer":14}],9:[function(require,module,exports){
+},{"./context/glcontext":4,"./level":8,"./renderer":15}],10:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.GDObjectData = exports.ZLayer = void 0;
@@ -12361,7 +12444,7 @@ class GDObjectData {
 }
 exports.GDObjectData = GDObjectData;
 
-},{"../util/spritecrop":17}],10:[function(require,module,exports){
+},{"../util/spritecrop":18}],11:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.GDObject = void 0;
@@ -12412,7 +12495,7 @@ class GDObject {
 }
 exports.GDObject = GDObject;
 
-},{"../renderer":14,"./object-data":9}],11:[function(require,module,exports){
+},{"../renderer":15,"./object-data":10}],12:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ObjectCollection = void 0;
@@ -12432,7 +12515,7 @@ class ObjectCollection {
 }
 exports.ObjectCollection = ObjectCollection;
 
-},{"./texture-object":12}],12:[function(require,module,exports){
+},{"./texture-object":13}],13:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TextureObject = void 0;
@@ -12445,7 +12528,7 @@ class TextureObject {
 }
 exports.TextureObject = TextureObject;
 
-},{}],13:[function(require,module,exports){
+},{}],14:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Texture = void 0;
@@ -12468,7 +12551,7 @@ class Texture {
 }
 exports.Texture = Texture;
 
-},{}],14:[function(require,module,exports){
+},{}],15:[function(require,module,exports){
 "use strict";
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -12485,7 +12568,7 @@ class GDRWebRenderer {
         this.ctx = ctx;
         this.sheet = new texture_1.Texture(ctx);
         this.sheet.load(sheetpath);
-        this.camera = new camera_1.Camera(0, 0);
+        this.camera = new camera_1.Camera(0, 0, 1);
     }
     render(level) {
         this.ctx.clearColor(color_1.Color.fromRGB(0, 0, 128));
@@ -12496,7 +12579,7 @@ class GDRWebRenderer {
 exports.GDRWebRenderer = GDRWebRenderer;
 GDRWebRenderer.objectData = object_data_1.GDObjectData.fromObjectDataList(data_json_1.default);
 
-},{"../assets/data.json":1,"./camera":2,"./object/object-data":9,"./render/texture":13,"./util/color":15}],15:[function(require,module,exports){
+},{"../assets/data.json":1,"./camera":2,"./object/object-data":10,"./render/texture":14,"./util/color":16}],16:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Color = void 0;
@@ -12519,7 +12602,7 @@ class Color {
 }
 exports.Color = Color;
 
-},{}],16:[function(require,module,exports){
+},{}],17:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Mat3 = void 0;
@@ -12580,7 +12663,7 @@ class Mat3 {
 }
 exports.Mat3 = Mat3;
 
-},{}],17:[function(require,module,exports){
+},{}],18:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SpriteCrop = void 0;
@@ -12597,7 +12680,7 @@ class SpriteCrop {
 }
 exports.SpriteCrop = SpriteCrop;
 
-},{}],18:[function(require,module,exports){
+},{}],19:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Vec2 = void 0;
@@ -12612,7 +12695,7 @@ class Vec2 {
 }
 exports.Vec2 = Vec2;
 
-},{}],19:[function(require,module,exports){
+},{}],20:[function(require,module,exports){
 let {GDRWebRenderer, GDLevel, WebGLContext} = require('../build/src/main');
 
 window.onload = () => {
@@ -12631,8 +12714,8 @@ window.onload = () => {
 
     document.onmousemove = (e) => {
         if (drag) {
-            renderer.camera.x += e.movementX;
-            renderer.camera.y -= e.movementY;
+            renderer.camera.x += e.movementX / renderer.camera.zoom;
+            renderer.camera.y -= e.movementY / renderer.camera.zoom;
 
             renderer.render(level);
         }
@@ -12642,10 +12725,18 @@ window.onload = () => {
         drag = true;
     }
 
+    canvas.onwheel = (e) => {
+        console.log(e.deltaY);
+
+        renderer.camera.zoom *= 1 - (e.deltaY / 1000);
+
+        renderer.render(level);
+    }
+
     document.onmouseup = () => {
         drag = false;
     }
 
     renderer.render(level);
 }
-},{"../build/src/main":8}]},{},[19]);
+},{"../build/src/main":9}]},{},[20]);

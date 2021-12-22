@@ -1,4 +1,5 @@
 import { Mat3 } from "../../util/mat3";
+import { Vec2 } from "../../util/vec2";
 
 export class ShaderProgram {
     gl: WebGL2RenderingContext;
@@ -59,6 +60,8 @@ export class ShaderProgram {
         let l = this.gl.getAttribLocation(this.program, name);
         this.attribs[name] = l;
 
+        console.log(name, l);
+
         return l;
     }
 
@@ -69,11 +72,17 @@ export class ShaderProgram {
         let l = this.gl.getUniformLocation(this.program, name);
         this.uniforms[name] = l;
 
+        console.log(name, l);
+
         return l;
     }
 
     uMat3(name: string, m: Mat3) {
         this.gl.uniformMatrix3fv(this.uniform(name), false, new Float32Array(m.buffer()));
+    }
+
+    uVec2(name: string, v: Vec2) {
+        this.gl.uniform2fv(this.uniform(name), new Float32Array(v.buffer()));
     }
 
     uInteger(name: string, i: number) {

@@ -25,7 +25,7 @@ export class GDRWebRenderer {
         this.sheet = new Texture(ctx);
         this.sheet.load(sheetpath);
 
-        this.camera = new Camera(0, 0);
+        this.camera = new Camera(0, 0, 1);
     }
 
     render(level: GDLevel) {
