@@ -38,25 +38,33 @@ export class GDObject {
         }
     }
 
-    static fromLevelData(data: {}): GDObject {
-        let o = new GDObject();
+    applyData(data: {}) {
+        this.id       = GDObject.parse(data[1], 'number',  1);
+        this.x        = GDObject.parse(data[2], 'number',  0);
+        this.y        = GDObject.parse(data[3], 'number',  0);
+        this.xflip    = GDObject.parse(data[4], 'boolean', false);
+        this.yflip    = GDObject.parse(data[5], 'boolean', false);
+        this.rotation = GDObject.parse(data[6], 'number',  0);
 
-        o.id       = this.parse(data[1], 'number',  1);
-        o.x        = this.parse(data[2], 'number',  0);
-        o.y        = this.parse(data[3], 'number',  0);
-        o.xflip    = this.parse(data[4], 'boolean', false);
-        o.yflip    = this.parse(data[5], 'boolean', false);
-        o.rotation = this.parse(data[6], 'number',  0);
-
-        let def: GDObjectData = GDRWebRenderer.objectData[o.id];
+        let def: GDObjectData = GDRWebRenderer.objectData[this.id];
 
         if (def) {
-            o.zorder = this.parse(data[25], 'number', def.zorder);
-            o.zlayer = this.getZLayerValue(data[26]) || def.zlayer;
+            this.zorder = GDObject.parse(data[25], 'number', def.zorder);
+            this.zlayer = GDObject.getZLayerValue(data[26]) || def.zlayer;
         }
-
-        return o;
     }
+
+    /*static fromLevelData(data: {}): GDObject {
+        let id = data[1] || 1;
+
+        let o: GDObject;
+
+        if (SpeedPortal.isOfType(id))
+            o = new SpeedPortal();
+
+        o.applyData(data);
+        return o;
+    }*/
 
     static compareZOrder(o1: GDObject, o2: GDObject) {
         if (o1.zlayer != o2.zlayer) return o1.zlayer - o2.zlayer;

@@ -8,6 +8,8 @@ export class Texture {
 
     public loaded: boolean = false;
 
+    public onload: Function = null;
+
     ctx: RenderContext;
 
     constructor(ctx: RenderContext) {
@@ -27,6 +29,9 @@ export class Texture {
             tex.height = img.height;
 
             tex.loaded = true;
+
+            if (tex.onload)
+                tex.onload();
         }
     }
 }

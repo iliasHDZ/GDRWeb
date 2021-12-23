@@ -11984,13 +11984,13 @@ class Camera {
     getMatrix(width, height) {
         let m = new mat3_1.Mat3();
         m.scale(new vec2_1.Vec2(2 / width * this.zoom, 2 / height * this.zoom));
-        m.translate(new vec2_1.Vec2(this.x, this.y));
+        m.translate(new vec2_1.Vec2(-this.x, -this.y));
         return m;
     }
 }
 exports.Camera = Camera;
 
-},{"./util/mat3":17,"./util/vec2":19}],3:[function(require,module,exports){
+},{"./util/mat3":18,"./util/vec2":20}],3:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.RenderContext = void 0;
@@ -12148,7 +12148,6 @@ class WebGLContext extends context_1.RenderContext {
         let d = [];
         for (let o of c.objects)
             d.push(...this.genQuad(o.model, o.color, o.sprite));
-        console.log(d);
         const stride = 12 * 4; // [pos_x], [pos_y], [col_r], [col_g], [col_b], [col_a], [tex_u], [tex_v], [scp_l], [scp_t], [scp_r], [scp_b]
         let b = new buffer_1.BufferObject(this.gl, d);
         let a = new buffer_array_1.BufferArray(this.gl);
@@ -12196,7 +12195,7 @@ class WebGLContext extends context_1.RenderContext {
 }
 exports.WebGLContext = WebGLContext;
 
-},{"../util/mat3":17,"../util/vec2":19,"./context":3,"./webgl2/buffer":6,"./webgl2/buffer-array":5,"./webgl2/program":7}],5:[function(require,module,exports){
+},{"../util/mat3":18,"../util/vec2":20,"./context":3,"./webgl2/buffer":6,"./webgl2/buffer-array":5,"./webgl2/program":7}],5:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.BufferArray = void 0;
@@ -12282,7 +12281,6 @@ class ShaderProgram {
             return this.attribs[name];
         let l = this.gl.getAttribLocation(this.program, name);
         this.attribs[name] = l;
-        console.log(name, l);
         return l;
     }
     uniform(name) {
@@ -12290,7 +12288,6 @@ class ShaderProgram {
             return this.uniforms[name];
         let l = this.gl.getUniformLocation(this.program, name);
         this.uniforms[name] = l;
-        console.log(name, l);
         return l;
     }
     uMat3(name, m) {
@@ -12313,6 +12310,7 @@ exports.ShaderProgram = ShaderProgram;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.GDLevel = void 0;
 const object_1 = require("./object/object");
+const speed_portal_1 = require("./object/speed-portal");
 const object_collection_1 = require("./render/object-collection");
 const renderer_1 = require("./renderer");
 const color_1 = require("./util/color");
@@ -12323,15 +12321,32 @@ class GDLevel {
         this.data = [];
         this.renderer = renderer;
     }
+    static parseLevelProps(level, str) {
+        let psplit = str.split(',');
+        let props = {};
+        for (let p = 0; p < psplit.length; p += 2)
+            props[psplit[p]] = psplit[p + 1];
+        // TODO: The speed enum and gd's enum probably don't match up, pls fix!!!
+        level.speed = object_1.GDObject.parse(props['kA4'], 'number', speed_portal_1.PortalSpeed.ONE);
+        level.song_offset = object_1.GDObject.parse(props['kA13'], 'number', 0);
+    }
     static parse(renderer, data) {
         let level = new GDLevel(renderer);
         let split = data.split(';');
+        this.parseLevelProps(level, split[0]);
         for (let i = 1; i < split.length; i++) {
             let psplit = split[i].split(',');
             let props = {};
             for (let p = 0; p < psplit.length; p += 2)
                 props[+psplit[p]] = psplit[p + 1];
-            level.data.push(object_1.GDObject.fromLevelData(props));
+            let id = props[1] || 1;
+            let o;
+            if (speed_portal_1.SpeedPortal.isOfType(id))
+                o = new speed_portal_1.SpeedPortal();
+            else
+                o = new object_1.GDObject();
+            o.applyData(props);
+            level.data.push(o);
         }
         level.init();
         return level;
@@ -12350,11 +12365,51 @@ class GDLevel {
         m.scale(new vec2_1.Vec2(sx, sy));
         return m;
     }
+    timeAt(x) {
+        let sec = 0, lx = 15, spd = speed_portal_1.SpeedPortal.getSpeed(this.speed);
+        for (let i of this.speedportals) {
+            let sp = this.data[i];
+            if (!sp)
+                continue;
+            if (sp.x >= x)
+                break;
+            let delta = sp.x - lx;
+            if (delta < 0)
+                continue;
+            sec += delta / spd;
+            lx += delta;
+            spd = speed_portal_1.SpeedPortal.getSpeed(sp.speed);
+        }
+        return sec + (x - lx) / spd;
+    }
+    posAt(s) {
+        let sec = 0, lx = 15, spd = speed_portal_1.SpeedPortal.getSpeed(this.speed);
+        for (let i of this.speedportals) {
+            let sp = this.data[i];
+            if (!sp)
+                continue;
+            let delta = sp.x - lx;
+            if (delta < 0)
+                continue;
+            let tsec = sec + delta / spd;
+            if (tsec >= s)
+                break;
+            sec = tsec;
+            lx += delta;
+            spd = speed_portal_1.SpeedPortal.getSpeed(sp.speed);
+        }
+        return lx + (s - sec) * spd;
+    }
     addTexture(obj, s) {
         this.level_col.add(this.getModelMatrix(obj), color_1.Color.fromRGB(255, 255, 255), s);
     }
     init() {
         this.level_col = new object_collection_1.ObjectCollection(this.renderer.ctx, this.renderer.sheet);
+        this.speedportals = [];
+        for (let i = 0; i < this.data.length; i++)
+            if (this.data[i] && this.data[i] instanceof speed_portal_1.SpeedPortal)
+                this.speedportals.push(i);
+        this.speedportals.sort((a, b) => this.data[a].x - this.data[b].x);
         let data = [];
         for (let o of this.data)
             data.push(o);
@@ -12373,7 +12428,7 @@ class GDLevel {
 }
 exports.GDLevel = GDLevel;
 
-},{"./object/object":11,"./render/object-collection":12,"./renderer":15,"./util/color":16,"./util/mat3":17,"./util/vec2":19}],9:[function(require,module,exports){
+},{"./object/object":11,"./object/speed-portal":12,"./render/object-collection":13,"./renderer":16,"./util/color":17,"./util/mat3":18,"./util/vec2":20}],9:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.WebGLContext = exports.GDLevel = exports.GDRWebRenderer = void 0;
@@ -12384,7 +12439,7 @@ Object.defineProperty(exports, "GDLevel", { enumerable: true, get: function () {
 const glcontext_1 = require("./context/glcontext");
 Object.defineProperty(exports, "WebGLContext", { enumerable: true, get: function () { return glcontext_1.WebGLContext; } });
 
-},{"./context/glcontext":4,"./level":8,"./renderer":15}],10:[function(require,module,exports){
+},{"./context/glcontext":4,"./level":8,"./renderer":16}],10:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.GDObjectData = exports.ZLayer = void 0;
@@ -12444,7 +12499,7 @@ class GDObjectData {
 }
 exports.GDObjectData = GDObjectData;
 
-},{"../util/spritecrop":18}],11:[function(require,module,exports){
+},{"../util/spritecrop":19}],11:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.GDObject = void 0;
@@ -12472,21 +12527,30 @@ class GDObject {
             default: return null;
         }
     }
-    static fromLevelData(data) {
-        let o = new GDObject();
-        o.id = this.parse(data[1], 'number', 1);
-        o.x = this.parse(data[2], 'number', 0);
-        o.y = this.parse(data[3], 'number', 0);
-        o.xflip = this.parse(data[4], 'boolean', false);
-        o.yflip = this.parse(data[5], 'boolean', false);
-        o.rotation = this.parse(data[6], 'number', 0);
-        let def = renderer_1.GDRWebRenderer.objectData[o.id];
+    applyData(data) {
+        this.id = GDObject.parse(data[1], 'number', 1);
+        this.x = GDObject.parse(data[2], 'number', 0);
+        this.y = GDObject.parse(data[3], 'number', 0);
+        this.xflip = GDObject.parse(data[4], 'boolean', false);
+        this.yflip = GDObject.parse(data[5], 'boolean', false);
+        this.rotation = GDObject.parse(data[6], 'number', 0);
+        let def = renderer_1.GDRWebRenderer.objectData[this.id];
         if (def) {
-            o.zorder = this.parse(data[25], 'number', def.zorder);
-            o.zlayer = this.getZLayerValue(data[26]) || def.zlayer;
+            this.zorder = GDObject.parse(data[25], 'number', def.zorder);
+            this.zlayer = GDObject.getZLayerValue(data[26]) || def.zlayer;
         }
-        return o;
     }
+    /*static fromLevelData(data: {}): GDObject {
+        let id = data[1] || 1;
+
+        let o: GDObject;
+
+        if (SpeedPortal.isOfType(id))
+            o = new SpeedPortal();
+
+        o.applyData(data);
+        return o;
+    }*/
     static compareZOrder(o1, o2) {
         if (o1.zlayer != o2.zlayer)
             return o1.zlayer - o2.zlayer;
@@ -12495,7 +12559,58 @@ class GDObject {
 }
 exports.GDObject = GDObject;
 
-},{"../renderer":15,"./object-data":10}],12:[function(require,module,exports){
+},{"../renderer":16,"./object-data":10}],12:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.SpeedPortal = exports.PortalSpeed = void 0;
+const object_1 = require("./object");
+var PortalSpeed;
+(function (PortalSpeed) {
+    PortalSpeed[PortalSpeed["HALF"] = 0] = "HALF";
+    PortalSpeed[PortalSpeed["ONE"] = 1] = "ONE";
+    PortalSpeed[PortalSpeed["TWO"] = 2] = "TWO";
+    PortalSpeed[PortalSpeed["THREE"] = 3] = "THREE";
+    PortalSpeed[PortalSpeed["FOUR"] = 4] = "FOUR";
+})(PortalSpeed = exports.PortalSpeed || (exports.PortalSpeed = {}));
+class SpeedPortal extends object_1.GDObject {
+    applyData(data) {
+        super.applyData(data);
+        let s;
+        switch (this.id) {
+            case 200:
+                s = PortalSpeed.HALF;
+                break;
+            case 201:
+                s = PortalSpeed.ONE;
+                break;
+            case 202:
+                s = PortalSpeed.TWO;
+                break;
+            case 203:
+                s = PortalSpeed.THREE;
+                break;
+            case 1334:
+                s = PortalSpeed.FOUR;
+                break;
+        }
+        this.speed = s;
+    }
+    static getSpeed(s) {
+        switch (s) {
+            case PortalSpeed.HALF: return 251.16;
+            case PortalSpeed.ONE: return 311.58;
+            case PortalSpeed.TWO: return 387.42;
+            case PortalSpeed.THREE: return 468.00;
+            case PortalSpeed.FOUR: return 576.00;
+        }
+    }
+    static isOfType(id) {
+        return id >= 200 && id <= 203 || id == 1334;
+    }
+}
+exports.SpeedPortal = SpeedPortal;
+
+},{"./object":11}],13:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ObjectCollection = void 0;
@@ -12515,7 +12630,7 @@ class ObjectCollection {
 }
 exports.ObjectCollection = ObjectCollection;
 
-},{"./texture-object":13}],13:[function(require,module,exports){
+},{"./texture-object":14}],14:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.TextureObject = void 0;
@@ -12528,13 +12643,14 @@ class TextureObject {
 }
 exports.TextureObject = TextureObject;
 
-},{}],14:[function(require,module,exports){
+},{}],15:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Texture = void 0;
 class Texture {
     constructor(ctx) {
         this.loaded = false;
+        this.onload = null;
         this.ctx = ctx;
     }
     load(path) {
@@ -12546,12 +12662,14 @@ class Texture {
             tex.width = img.width;
             tex.height = img.height;
             tex.loaded = true;
+            if (tex.onload)
+                tex.onload();
         };
     }
 }
 exports.Texture = Texture;
 
-},{}],15:[function(require,module,exports){
+},{}],16:[function(require,module,exports){
 "use strict";
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
@@ -12565,10 +12683,25 @@ const data_json_1 = __importDefault(require("../assets/data.json"));
 const camera_1 = require("./camera");
 class GDRWebRenderer {
     constructor(ctx, sheetpath) {
+        this.handlers = {};
         this.ctx = ctx;
         this.sheet = new texture_1.Texture(ctx);
         this.sheet.load(sheetpath);
+        let r = this;
+        this.sheet.onload = () => {
+            r.emit('load');
+        };
         this.camera = new camera_1.Camera(0, 0, 1);
+    }
+    emit(event, ...args) {
+        if (this.handlers[event])
+            for (let h of this.handlers[event])
+                h(...args);
+    }
+    on(event, handler) {
+        if (!this.handlers[event])
+            this.handlers[event] = [];
+        this.handlers[event].push(handler);
     }
     render(level) {
         this.ctx.clearColor(color_1.Color.fromRGB(0, 0, 128));
@@ -12579,7 +12712,7 @@ class GDRWebRenderer {
 exports.GDRWebRenderer = GDRWebRenderer;
 GDRWebRenderer.objectData = object_data_1.GDObjectData.fromObjectDataList(data_json_1.default);
 
-},{"../assets/data.json":1,"./camera":2,"./object/object-data":10,"./render/texture":14,"./util/color":16}],16:[function(require,module,exports){
+},{"../assets/data.json":1,"./camera":2,"./object/object-data":10,"./render/texture":15,"./util/color":17}],17:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Color = void 0;
@@ -12602,7 +12735,7 @@ class Color {
 }
 exports.Color = Color;
 
-},{}],17:[function(require,module,exports){
+},{}],18:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Mat3 = void 0;
@@ -12663,7 +12796,7 @@ class Mat3 {
 }
 exports.Mat3 = Mat3;
 
-},{}],18:[function(require,module,exports){
+},{}],19:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SpriteCrop = void 0;
@@ -12680,7 +12813,7 @@ class SpriteCrop {
 }
 exports.SpriteCrop = SpriteCrop;
 
-},{}],19:[function(require,module,exports){
+},{}],20:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Vec2 = void 0;
@@ -12695,7 +12828,7 @@ class Vec2 {
 }
 exports.Vec2 = Vec2;
 
-},{}],20:[function(require,module,exports){
+},{}],21:[function(require,module,exports){
 let {GDRWebRenderer, GDLevel, WebGLContext} = require('../build/src/main');
 
 window.onload = () => {
@@ -12710,12 +12843,16 @@ window.onload = () => {
 
     let level = GDLevel.parse(renderer, bloodbath);
 
+    renderer.on('load', () => {
+        renderer.render(level);
+    });
+
     let drag = false;
 
     document.onmousemove = (e) => {
         if (drag) {
-            renderer.camera.x += e.movementX / renderer.camera.zoom;
-            renderer.camera.y -= e.movementY / renderer.camera.zoom;
+            //renderer.camera.x -= e.movementX / renderer.camera.zoom;
+            renderer.camera.y += e.movementY / renderer.camera.zoom;
 
             renderer.render(level);
         }
@@ -12726,8 +12863,6 @@ window.onload = () => {
     }
 
     canvas.onwheel = (e) => {
-        console.log(e.deltaY);
-
         renderer.camera.zoom *= 1 - (e.deltaY / 1000);
 
         renderer.render(level);
@@ -12737,6 +12872,25 @@ window.onload = () => {
         drag = false;
     }
 
-    renderer.render(level);
+    document.getElementById('play').onclick = () => {
+        var audio = new Audio('467339.mp3');
+        audio.currentTime = level.song_offset;
+        audio.play();
+
+        function update() {
+            window.requestAnimationFrame(update);
+
+            let pos = level.posAt(audio.currentTime - level.song_offset + 0.5);
+
+            renderer.camera.x = pos;
+
+            //console.log(pos);
+            renderer.render(level);
+        }
+
+        update();
+    }
+
+    //renderer.render(level);
 }
-},{"../build/src/main":9}]},{},[20]);
+},{"../build/src/main":9}]},{},[21]);

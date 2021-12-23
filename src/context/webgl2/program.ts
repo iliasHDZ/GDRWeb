@@ -60,8 +60,6 @@ export class ShaderProgram {
         let l = this.gl.getAttribLocation(this.program, name);
         this.attribs[name] = l;
 
-        console.log(name, l);
-
         return l;
     }
 
@@ -71,8 +69,6 @@ export class ShaderProgram {
 
         let l = this.gl.getUniformLocation(this.program, name);
         this.uniforms[name] = l;
-
-        console.log(name, l);
 
         return l;
     }

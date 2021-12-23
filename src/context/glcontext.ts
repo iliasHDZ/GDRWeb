@@ -197,8 +197,6 @@ export class WebGLContext extends RenderContext {
 
         for (let o of c.objects)
             d.push(...this.genQuad(o.model, o.color, o.sprite));
-            
-        console.log(d);
 
         const stride = 12 * 4; // [pos_x], [pos_y], [col_r], [col_g], [col_b], [col_a], [tex_u], [tex_v], [scp_l], [scp_t], [scp_r], [scp_b]
 

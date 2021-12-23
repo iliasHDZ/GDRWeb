@@ -18,7 +18,7 @@ export class Camera {
         let m = new Mat3();
 
         m.scale( new Vec2( 2 / width * this.zoom, 2 / height * this.zoom ) );
-        m.translate( new Vec2(this.x, this.y) );
+        m.translate( new Vec2(-this.x, -this.y) );
 
         return m;
     }

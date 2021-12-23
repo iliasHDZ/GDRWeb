@@ -12,12 +12,16 @@ window.onload = () => {
 
     let level = GDLevel.parse(renderer, bloodbath);
 
+    renderer.on('load', () => {
+        renderer.render(level);
+    });
+
     let drag = false;
 
     document.onmousemove = (e) => {
         if (drag) {
-            renderer.camera.x += e.movementX / renderer.camera.zoom;
-            renderer.camera.y -= e.movementY / renderer.camera.zoom;
+            renderer.camera.x -= e.movementX / renderer.camera.zoom;
+            renderer.camera.y += e.movementY / renderer.camera.zoom;
 
             renderer.render(level);
         }
@@ -28,8 +32,6 @@ window.onload = () => {
     }
 
     canvas.onwheel = (e) => {
-        console.log(e.deltaY);
-
         renderer.camera.zoom *= 1 - (e.deltaY / 1000);
 
         renderer.render(level);
@@ -39,5 +41,24 @@ window.onload = () => {
         drag = false;
     }
 
-    renderer.render(level);
+    document.getElementById('play').onclick = () => {
+        var audio = new Audio('467339.mp3');
+        audio.currentTime = level.song_offset;
+        audio.play();
+
+        function update() {
+            window.requestAnimationFrame(update);
+
+            let pos = level.posAt(audio.currentTime - level.song_offset + 0.5);
+
+            renderer.camera.x = pos;
+
+            //console.log(pos);
+            renderer.render(level);
+        }
+
+        update();
+    }
+
+    //renderer.render(level);
 }
