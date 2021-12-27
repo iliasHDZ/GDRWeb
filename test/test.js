@@ -12,7 +12,7 @@ window.onload = () => {
         "../assets/spritesheet.png"
     );
 
-    let level = GDLevel.parse(renderer, ts);
+    let level = GDLevel.parse(renderer, bloodbath);
 
     renderer.on('load', () => {
         renderer.render(level);
