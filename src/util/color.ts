@@ -29,6 +29,18 @@ export class Color {
         );
     }
 
+    blend(c: Color, a: number) {
+        a = Math.max(Math.min(a, 1), 0);
+        let o = 1 - a;
+
+        return new Color(
+            o * this.r + a * c.r,
+            o * this.g + a * c.g,
+            o * this.b + a * c.b,
+            o * this.a + a * c.a
+        );
+    }
+
     buffer() {
         return [this.r, this.g, this.b, this.a];
     }

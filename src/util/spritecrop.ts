@@ -4,6 +4,8 @@ export class SpriteCrop {
     public w: number;
     public h: number;
 
+    public id: number;
+
     constructor(x: number, y: number, w: number, h: number) {
         this.x = x;
         this.y = y;

@@ -50,11 +50,13 @@ export class GDRWebRenderer {
     }
 
     render(level: GDLevel) {
-        this.ctx.clearColor(
-            Color.fromRGB(0, 0, 128)
-        );
+        let bg = level.colorAt(1000, this.camera.x);
+        this.ctx.clearColor(bg);
 
         this.ctx.setViewMatrix(this.camera.getMatrix(this.ctx.canvas.width, this.ctx.canvas.height));
+
+        for (let c of level.valid_channels)
+            this.ctx.setColorChannel(c, level.colorAt(c, this.camera.x));
 
         this.ctx.render(level.level_col);
     }

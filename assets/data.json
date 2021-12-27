@@ -128,7 +128,7 @@
     "10": {
         "zorder": 10,
         "zlayer": 1,
-        "mainCol": 1004,
+        "mainCol": 1011,
         "secCol": 0,
         "sprite_a": {
             "name": "10a.png",
@@ -142,7 +142,7 @@
     "11": {
         "zorder": 10,
         "zlayer": 1,
-        "mainCol": 1004,
+        "mainCol": 1011,
         "secCol": 0,
         "sprite_a": {
             "name": "11a.png",
@@ -156,7 +156,7 @@
     "12": {
         "zorder": 10,
         "zlayer": 1,
-        "mainCol": 1004,
+        "mainCol": 1011,
         "secCol": 0,
         "sprite_a": {
             "name": "12a.png",
@@ -170,7 +170,7 @@
     "13": {
         "zorder": 10,
         "zlayer": 1,
-        "mainCol": 1004,
+        "mainCol": 1011,
         "secCol": 0,
         "sprite_a": {
             "name": "13a.png",
@@ -282,7 +282,7 @@
     "22": {
         "zorder": 2,
         "zlayer": 1,
-        "mainCol": 1004,
+        "mainCol": 1011,
         "secCol": 0,
         "sprite_a": {
             "name": "22a.png",
@@ -296,7 +296,7 @@
     "23": {
         "zorder": 2,
         "zlayer": 1,
-        "mainCol": 1004,
+        "mainCol": 1011,
         "secCol": 0,
         "sprite_a": {
             "name": "23a.png",
@@ -310,7 +310,7 @@
     "24": {
         "zorder": 2,
         "zlayer": 1,
-        "mainCol": 1004,
+        "mainCol": 1011,
         "secCol": 0,
         "sprite_a": {
             "name": "24a.png",
@@ -324,7 +324,7 @@
     "25": {
         "zorder": 2,
         "zlayer": 1,
-        "mainCol": 1004,
+        "mainCol": 1011,
         "secCol": 0,
         "sprite_a": {
             "name": "25a.png",
@@ -338,7 +338,7 @@
     "26": {
         "zorder": 2,
         "zlayer": 1,
-        "mainCol": 1004,
+        "mainCol": 1011,
         "secCol": 0,
         "sprite_a": {
             "name": "26a.png",
@@ -352,7 +352,7 @@
     "27": {
         "zorder": 2,
         "zlayer": 1,
-        "mainCol": 1004,
+        "mainCol": 1011,
         "secCol": 0,
         "sprite_a": {
             "name": "27a.png",
@@ -366,7 +366,7 @@
     "28": {
         "zorder": 2,
         "zlayer": 1,
-        "mainCol": 1004,
+        "mainCol": 1011,
         "secCol": 0,
         "sprite_a": {
             "name": "28a.png",
@@ -380,7 +380,7 @@
     "29": {
         "zorder": 2,
         "zlayer": 1,
-        "mainCol": 1004,
+        "mainCol": 1011,
         "secCol": 0,
         "sprite_a": {
             "name": "29a.png",
@@ -394,7 +394,7 @@
     "30": {
         "zorder": 2,
         "zlayer": 1,
-        "mainCol": 1004,
+        "mainCol": 1011,
         "secCol": 0,
         "sprite_a": {
             "name": "30a.png",
@@ -408,7 +408,7 @@
     "31": {
         "zorder": 2,
         "zlayer": 1,
-        "mainCol": 1004,
+        "mainCol": 1011,
         "secCol": 0,
         "sprite_a": {
             "name": "31a.png",
@@ -422,7 +422,7 @@
     "32": {
         "zorder": 2,
         "zlayer": 1,
-        "mainCol": 1004,
+        "mainCol": 1011,
         "secCol": 0,
         "sprite_a": {
             "name": "32a.png",
@@ -436,7 +436,7 @@
     "33": {
         "zorder": 2,
         "zlayer": 1,
-        "mainCol": 1004,
+        "mainCol": 1011,
         "secCol": 0,
         "sprite_a": {
             "name": "33a.png",
@@ -450,7 +450,7 @@
     "34": {
         "zorder": 2,
         "zlayer": 1,
-        "mainCol": 1004,
+        "mainCol": 1011,
         "secCol": 0,
         "sprite_a": {
             "name": "34a.png",
@@ -464,7 +464,7 @@
     "35": {
         "zorder": 12,
         "zlayer": -1,
-        "mainCol": 1004,
+        "mainCol": 1011,
         "secCol": 0,
         "sprite_a": {
             "name": "35a.png",
@@ -478,7 +478,7 @@
     "36": {
         "zorder": 12,
         "zlayer": -1,
-        "mainCol": 1004,
+        "mainCol": 1011,
         "secCol": 0,
         "sprite_a": {
             "name": "36a.png",
@@ -542,7 +542,7 @@
     "45": {
         "zorder": 10,
         "zlayer": 1,
-        "mainCol": 1004,
+        "mainCol": 1011,
         "secCol": 0,
         "sprite_a": {
             "name": "45a.png",
@@ -556,7 +556,7 @@
     "46": {
         "zorder": 10,
         "zlayer": 1,
-        "mainCol": 1004,
+        "mainCol": 1011,
         "secCol": 0,
         "sprite_a": {
             "name": "46a.png",
@@ -570,7 +570,7 @@
     "47": {
         "zorder": 10,
         "zlayer": 1,
-        "mainCol": 1004,
+        "mainCol": 1011,
         "secCol": 0,
         "sprite_a": {
             "name": "47a.png",
@@ -682,7 +682,7 @@
     "55": {
         "zorder": 2,
         "zlayer": 1,
-        "mainCol": 1004,
+        "mainCol": 1011,
         "secCol": 0,
         "sprite_a": {
             "name": "55a.png",
@@ -696,7 +696,7 @@
     "56": {
         "zorder": 2,
         "zlayer": 1,
-        "mainCol": 1004,
+        "mainCol": 1011,
         "secCol": 0,
         "sprite_a": {
             "name": "56a.png",
@@ -710,7 +710,7 @@
     "57": {
         "zorder": 2,
         "zlayer": 1,
-        "mainCol": 1004,
+        "mainCol": 1011,
         "secCol": 0,
         "sprite_a": {
             "name": "57a.png",
@@ -724,7 +724,7 @@
     "58": {
         "zorder": 2,
         "zlayer": 1,
-        "mainCol": 1004,
+        "mainCol": 1011,
         "secCol": 0,
         "sprite_a": {
             "name": "58a.png",
@@ -738,7 +738,7 @@
     "59": {
         "zorder": 2,
         "zlayer": 1,
-        "mainCol": 1004,
+        "mainCol": 1011,
         "secCol": 0,
         "sprite_a": {
             "name": "59a.png",
@@ -1558,18 +1558,10 @@
         "zlayer": 1,
         "mainCol": 1004,
         "secCol": 0,
-        "sprite_i": {
-            "name": "116.png",
-            "spritesheet": 0,
-            "x": 1788,
-            "y": 0,
-            "w": 62,
-            "h": 62
-        },
         "sprite_a": {
             "name": "116a.png",
             "spritesheet": 0,
-            "x": 1066,
+            "x": 1788,
             "y": 0,
             "w": 62,
             "h": 62
@@ -1580,18 +1572,10 @@
         "zlayer": 1,
         "mainCol": 1004,
         "secCol": 0,
-        "sprite_i": {
-            "name": "117.png",
-            "spritesheet": 0,
-            "x": 1912,
-            "y": 0,
-            "w": 62,
-            "h": 62
-        },
         "sprite_a": {
             "name": "117a.png",
             "spritesheet": 0,
-            "x": 1302,
+            "x": 1912,
             "y": 0,
             "w": 62,
             "h": 62
@@ -1602,18 +1586,10 @@
         "zlayer": 1,
         "mainCol": 1004,
         "secCol": 0,
-        "sprite_i": {
-            "name": "118.png",
-            "spritesheet": 0,
-            "x": 2036,
-            "y": 0,
-            "w": 62,
-            "h": 62
-        },
         "sprite_a": {
             "name": "118a.png",
             "spritesheet": 0,
-            "x": 1478,
+            "x": 2036,
             "y": 0,
             "w": 62,
             "h": 62
@@ -1624,18 +1600,10 @@
         "zlayer": 1,
         "mainCol": 1004,
         "secCol": 0,
-        "sprite_i": {
-            "name": "119.png",
-            "spritesheet": 0,
-            "x": 1540,
-            "y": 0,
-            "w": 62,
-            "h": 62
-        },
         "sprite_a": {
             "name": "119a.png",
             "spritesheet": 0,
-            "x": 1602,
+            "x": 1540,
             "y": 0,
             "w": 62,
             "h": 62
@@ -1660,18 +1628,10 @@
         "zlayer": 1,
         "mainCol": 1004,
         "secCol": 0,
-        "sprite_i": {
-            "name": "121.png",
-            "spritesheet": 0,
-            "x": 2098,
-            "y": 0,
-            "w": 62,
-            "h": 62
-        },
         "sprite_a": {
             "name": "121a.png",
             "spritesheet": 0,
-            "x": 1850,
+            "x": 2098,
             "y": 0,
             "w": 62,
             "h": 62
@@ -1682,18 +1642,10 @@
         "zlayer": 1,
         "mainCol": 1004,
         "secCol": 0,
-        "sprite_i": {
-            "name": "122.png",
-            "spritesheet": 0,
-            "x": 2160,
-            "y": 0,
-            "w": 62,
-            "h": 62
-        },
         "sprite_a": {
             "name": "122a.png",
             "spritesheet": 0,
-            "x": 1974,
+            "x": 2160,
             "y": 0,
             "w": 62,
             "h": 62
@@ -3216,10 +3168,10 @@
     "222": {
         "zorder": 9,
         "zlayer": -1,
-        "mainCol": 1004,
+        "mainCol": 1006,
         "secCol": 0,
-        "sprite_i": {
-            "name": "222.png",
+        "sprite_a": {
+            "name": "222a.png",
             "spritesheet": 0,
             "x": 3219,
             "y": 358,

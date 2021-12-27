@@ -13,5 +13,7 @@ export abstract class RenderContext {
 
     abstract loadTexture(img: HTMLImageElement): any;
     
-    abstract setViewMatrix(view: Mat3): any;
+    abstract setViewMatrix(view: Mat3);
+    
+    abstract setColorChannel(channel: number, color: Color);
 }

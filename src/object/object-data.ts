@@ -20,6 +20,8 @@ export class GDObjectData {
     public baseSprite: SpriteCrop   = null;
     public detailSprite: SpriteCrop = null;
 
+    public spriteNoColor: boolean;
+
     public width: number;
     public height: number;
 
@@ -36,6 +38,8 @@ export class GDObjectData {
         default: return ZLayer.B1;
         }
     }
+
+    static lastSpriteId: number = 0;
 
     static fromObjectData(data: any): GDObjectData {
         let obj = new GDObjectData();
@@ -54,13 +58,20 @@ export class GDObjectData {
 
         if (sprs.length >= 1) {
             obj.baseSprite = sprs[0];
+
+            obj.baseSprite.id = this.lastSpriteId++;
         
             obj.width  = obj.baseSprite.w;
             obj.height = obj.baseSprite.h;
         }
         
-        if (sprs.length >= 2)
+        if (sprs.length >= 2) {
             obj.detailSprite = sprs[1];
+
+            obj.detailSprite.id = this.lastSpriteId++;
+        }
+
+        obj.spriteNoColor = !(!data.sprite_i);
 
         return obj;
     }
@@ -71,6 +82,7 @@ export class GDObjectData {
         for (let [k, v] of Object.entries(list))
             ret[k] = this.fromObjectData(v);
 
+        console.log(ret);
         return ret;
     }
 }

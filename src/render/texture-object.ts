@@ -4,10 +4,10 @@ import { SpriteCrop } from "../util/spritecrop";
 
 export class TextureObject {
     public model: Mat3;
-    public color: Color;
+    public color: number;
     public sprite: SpriteCrop;
 
-    constructor(model: Mat3, color: Color, sprite: SpriteCrop) {
+    constructor(model: Mat3, color: number, sprite: SpriteCrop) {
         this.model  = model;
         this.color  = color;
         this.sprite = sprite;

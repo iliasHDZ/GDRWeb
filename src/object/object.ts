@@ -14,6 +14,9 @@ export class GDObject {
     
     public zorder: number;
     public zlayer: ZLayer;
+    
+    public baseCol: number;
+    public detailCol: number;
 
     static parse(data: string, type: string, def: any): any {
         if (!data) return def;
@@ -51,6 +54,9 @@ export class GDObject {
         if (def) {
             this.zorder = GDObject.parse(data[25], 'number', def.zorder);
             this.zlayer = GDObject.getZLayerValue(data[26]) || def.zlayer;
+            
+            this.baseCol   = GDObject.parse(data[21], 'number', def.baseCol);
+            this.detailCol = GDObject.parse(data[22], 'number', def.detailCol);
         }
     }
 

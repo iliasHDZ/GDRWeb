@@ -19,7 +19,7 @@ export class ObjectCollection {
         this.ctx     = ctx;
     }
 
-    add(model: Mat3, color: Color, sprite: SpriteCrop) {
+    add(model: Mat3, color: number, sprite: SpriteCrop) {
         this.objects.push(new TextureObject(model, color, sprite));
     }
 
