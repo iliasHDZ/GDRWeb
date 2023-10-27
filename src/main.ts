@@ -1,9 +1,11 @@
-import {GDRWebRenderer} from'./renderer';
-import {GDLevel} from'./level';
-import {WebGLContext} from'./context/glcontext';
+import { Renderer } from './renderer';
+import { GDLevel } from './level';
+import { WebGLContext } from './context/glcontext';
+import { Vec2 } from './util/vec2';
 
 export {
-    GDRWebRenderer,
+    Renderer,
     GDLevel,
-    WebGLContext
+    WebGLContext,
+    Vec2
 };

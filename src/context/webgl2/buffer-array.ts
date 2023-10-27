@@ -13,7 +13,7 @@ export class BufferArray {
         this.vao = gl.createVertexArray();
     }
 
-    add(location: number, buffer: BufferObject, size: number, offset: number, stride: number, divisor: number = 0) {
+    add(location: number, buffer: BufferObject, size: number, offset: number, stride: number, divisor: number = 0, type: number = -1) {
         if (location == -1) return;
 
         let gl = this.gl;
@@ -23,7 +23,7 @@ export class BufferArray {
 
         gl.enableVertexAttribArray(location);
 
-        gl.vertexAttribPointer(location, size, gl.FLOAT, false, stride, offset);
+        gl.vertexAttribPointer(location, size, type == -1 ? gl.FLOAT : type, false, stride, offset);
 
         if (divisor != 0)
             gl.vertexAttribDivisor(location, divisor);

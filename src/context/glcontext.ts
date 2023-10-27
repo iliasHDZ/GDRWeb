@@ -4,19 +4,18 @@ import { ObjectCollection } from '../render/object-collection';
 import { ShaderProgram } from './webgl2/program';
 import { BufferObject } from './webgl2/buffer';
 import { BufferArray } from './webgl2/buffer-array';
+import { ArrayType, BufferArrayBuilder } from './webgl2/buffer-array-builder';
 import { Mat3 } from '../util/mat3';
 import { Vec2 } from '../util/vec2';
-import { SpriteCrop } from '../util/spritecrop';
-import { GDRWebRenderer } from '../renderer';
-import { GDObjectData } from '../object/object-data';
+import { SpriteCrop, SpriteInfo } from '../util/sprite';
 
 const VERT_SOURCE = `#version 300 es
 
 in vec2 aPos;
-
 in vec2 aTex;
 in vec4 aSCp;
 
+in float aFlags;
 in float aCol;
 
 uniform mat3 uView;
@@ -26,11 +25,15 @@ out vec4 oSCp;
 
 out float oCol;
 
+flat out int oFlags;
+
 void main() {
     oTex = aTex;
     oSCp = aSCp;
 
     oCol = aCol;
+
+    oFlags = int(aFlags);
 
     gl_Position = vec4(uView * vec3(aPos, 1), 1);
 }
@@ -47,13 +50,19 @@ in  vec4 oSCp;
 
 in float oCol;
 
+flat in int oFlags;
+
 uniform sampler2D uTexture;
+uniform sampler2D uSecondTexture;
 
 uniform vec4 uColors[1011];
 
 vec4 getTexFrag(vec2 pos) {
     vec2 texCoords = pos / vec2(textureSize(uTexture, 0));
-    return texture(uTexture, texCoords);
+    if (oFlags == 1)
+        return texture(uSecondTexture, texCoords);
+    else
+        return texture(uTexture, texCoords);
 }
 
 void main() {
@@ -126,14 +135,18 @@ void main() {
     else
         objColor = uColors[int(oCol)];
 
-    if (oCol == 1003.0) {
-        objColor = uColors[1003];
-        return;
-    }
-
     outColor = texFrag * objColor;
 }
 `;
+
+// Changing FLOATs to SHORTs; 411.5 KiB -> 320 KiB
+const attributes = {
+    ["aPos"]: ArrayType.FLOAT2,
+    ["aCol"]: ArrayType.SHORT,
+    ["aFlags"]: ArrayType.SHORT,
+    ["aTex"]: ArrayType.FLOAT2,
+    ["aSCp"]: ArrayType.SHORT4
+};
 
 export class WebGLContext extends RenderContext {
     gl: WebGL2RenderingContext;
@@ -145,9 +158,11 @@ export class WebGLContext extends RenderContext {
 
     colors: number[];
 
+    /*
     private texWidth: number;
     private texHeight: number;
     private texCount: number;
+    */
 
     constructor(canvas: HTMLCanvasElement) {
         super();
@@ -184,36 +199,37 @@ export class WebGLContext extends RenderContext {
         this.colors = [];
 
         for (let i = 0; i < 1011 * 4; i++)
-            this.colors.push(1);
+            this.colors.push(0);
 
-        
+        /*
         this.texWidth  = 0;
         this.texHeight = 0;
         this.texCount  = 0;
 
-        for (let [k, v] of Object.entries(GDRWebRenderer.objectData)) {
+        for (let [k, v] of Object.entries(Renderer.objectData.data)) {
             if (!v) continue;
 
             let obj = v as GDObjectData;
 
             if (obj.baseSprite) {
-                this.texWidth  = Math.max(this.texWidth,  obj.baseSprite.w);
-                this.texHeight = Math.max(this.texHeight, obj.baseSprite.h);
+                this.texWidth  = Math.max(this.texWidth,  obj.baseSprite.crop.w);
+                this.texHeight = Math.max(this.texHeight, obj.baseSprite.crop.h);
                 this.texCount++;
             }
 
             if (obj.detailSprite) {
-                this.texWidth  = Math.max(this.texWidth,  obj.detailSprite.w);
-                this.texHeight = Math.max(this.texHeight, obj.detailSprite.h);
+                this.texWidth  = Math.max(this.texWidth,  obj.detailSprite.crop.w);
+                this.texHeight = Math.max(this.texHeight, obj.detailSprite.crop.h);
                 this.texCount++;
             }
         }
 
         console.log(this.texWidth, this.texHeight, this.texCount);
+        */
     }
 
     setColorChannel(channel: number, color: Color) {
-        if (channel <= 0 || channel > 1011) return;
+        if (channel < 0 || channel > 1011) return;
 
         this.colors[channel * 4]     = color.r;
         this.colors[channel * 4 + 1] = color.g;
@@ -251,7 +267,7 @@ export class WebGLContext extends RenderContext {
         return t;
     }
 
-    genQuad(m: Mat3, c: number, s: SpriteCrop): number[] {
+    genQuadStructs(m: Mat3, c: number, sprite: SpriteInfo): any {
         let r = [];
 
         let q = [
@@ -263,19 +279,90 @@ export class WebGLContext extends RenderContext {
             new Vec2( -0.5, -0.5 )
         ];
 
-        let t_l = s.x,
-            t_r = s.x + s.w,
-            t_t = s.y,
-            t_b = s.y + s.h;
+        const crop = sprite.crop;
 
-        let t = [
-            new Vec2( t_l, t_b ),
-            new Vec2( t_l, t_t ),
-            new Vec2( t_r, t_t ),
-            new Vec2( t_r, t_t ),
-            new Vec2( t_r, t_b ),
-            new Vec2( t_l, t_b )
+        let t_l = crop.x,
+            t_r = crop.x + crop.w,
+            t_t = crop.y,
+            t_b = crop.y + crop.h;
+
+        let t: Vec2[];
+        
+        if (sprite.rotated) {
+            t = [
+                new Vec2( t_r, t_t ),
+                new Vec2( t_l, t_t ),
+                new Vec2( t_l, t_b ),
+                new Vec2( t_l, t_b ),
+                new Vec2( t_r, t_b ),
+                new Vec2( t_r, t_t )
+            ];
+        } else {
+            t = [
+                new Vec2( t_l, t_b ),
+                new Vec2( t_l, t_t ),
+                new Vec2( t_r, t_t ),
+                new Vec2( t_r, t_t ),
+                new Vec2( t_r, t_b ),
+                new Vec2( t_l, t_b )
+            ];
+        }
+
+        const aSCp = [t_l, t_t, t_r, t_b];
+
+        for (let i = 0; i < q.length; i++) {
+            r.push({
+                aPos: m.transform(q[i]).buffer(),
+                aCol: c,
+                aFlags: sprite.sheet == 2 ? 1 : 0,
+                aTex: t[i].buffer(),
+                aSCp
+            });
+        }
+
+        return r;
+    }
+
+    genQuad(m: Mat3, c: number, sprite: SpriteInfo): number[] {
+        let r = [];
+
+        let q = [
+            new Vec2( -0.5, -0.5 ),
+            new Vec2( -0.5,  0.5 ),
+            new Vec2(  0.5,  0.5 ),
+            new Vec2(  0.5,  0.5 ),
+            new Vec2(  0.5, -0.5 ),
+            new Vec2( -0.5, -0.5 )
         ];
+
+        const crop = sprite.crop;
+
+        let t_l = crop.x,
+            t_r = crop.x + crop.w,
+            t_t = crop.y,
+            t_b = crop.y + crop.h;
+
+        let t: Vec2[];
+        
+        if (sprite.rotated) {
+            t = [
+                new Vec2( t_r, t_t ),
+                new Vec2( t_l, t_t ),
+                new Vec2( t_l, t_b ),
+                new Vec2( t_l, t_b ),
+                new Vec2( t_r, t_b ),
+                new Vec2( t_r, t_t )
+            ];
+        } else {
+            t = [
+                new Vec2( t_l, t_b ),
+                new Vec2( t_l, t_t ),
+                new Vec2( t_r, t_t ),
+                new Vec2( t_r, t_t ),
+                new Vec2( t_r, t_b ),
+                new Vec2( t_l, t_b )
+            ];
+        }
 
         for (let i = 0; i < q.length; i++) {
             r.push(...m.transform(q[i]).buffer());
@@ -301,7 +388,7 @@ export class WebGLContext extends RenderContext {
         return r;
     }
 
-    compileObjects(c: ObjectCollection) {
+    /* compileObjects(c: ObjectCollection) {
         let p = this.program;
         let d = [];
 
@@ -310,7 +397,7 @@ export class WebGLContext extends RenderContext {
 
         const stride = 9 * 4; // [pos_x], [pos_y], [col_r], [tex_u], [tex_v], [scp_l], [scp_t], [scp_r], [scp_b]
 
-        let b = new BufferObject(this.gl, d);
+        let b = new BufferObject(this.gl, new Float32Array(d));
         let a = new BufferArray(this.gl);
 
         a.add(p.attrib('aPos'), b, 2, 0,     stride);
@@ -345,10 +432,23 @@ export class WebGLContext extends RenderContext {
         return {
             ins_count: c.objects.length,
             buffer_array: a
-        };*/
-    }
+        };
+    } */
 
-    yo: boolean = true;
+    compileObjects(c: ObjectCollection) {
+        const builder = new BufferArrayBuilder(attributes);
+
+        for (let o of c.objects) {
+            const quad = this.genQuadStructs(o.model, o.color, o.sprite)
+            for (let a of quad)
+                builder.add(a);
+        }
+        
+        return {
+            count: c.objects.length * 6,
+            array: builder.compile(this.gl, this.program)
+        };
+    }
 
     render(c: ObjectCollection) {
         let gl = this.gl;
@@ -358,8 +458,17 @@ export class WebGLContext extends RenderContext {
 
         this.program.uV4('uColors', this.colors);
 
-        if (c.texture.loaded) {
-            gl.bindTexture(gl.TEXTURE_2D, c.texture.texture);
+        this.program.uInteger('uTexture', 0);
+        this.program.uInteger('uSecondTexture', 1);
+
+        if (c.mainTexture.loaded) {
+            gl.activeTexture(gl.TEXTURE0);
+            gl.bindTexture(gl.TEXTURE_2D, c.mainTexture.texture);
+
+            if (c.secondTexture && c.secondTexture.loaded) {
+                gl.activeTexture(gl.TEXTURE1);
+                gl.bindTexture(gl.TEXTURE_2D, c.secondTexture.texture);
+            }
 
             gl.drawArrays(gl.TRIANGLES, 0, c.buffer.count);
         }

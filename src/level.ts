@@ -2,15 +2,16 @@ import { GDObject } from "./object/object";
 import { PortalSpeed, SpeedPortal } from "./object/speed-portal";
 import { ColorTrigger } from "./object/color-trigger";
 import { ObjectCollection } from "./render/object-collection";
-import { GDRWebRenderer } from "./renderer";
+import { Renderer } from "./renderer";
 import { Color } from "./util/color";
 import { GDColor } from "./util/gdcolor";
 import { BaseColor } from "./util/basecolor";
 import { PlayerColor } from "./util/playercolor";
 import { MixedColor } from "./util/mixedcolor";
 import { Mat3 } from "./util/mat3";
-import { SpriteCrop } from "./util/spritecrop";
+import { SpriteCrop, SpriteInfo } from "./util/sprite";
 import { Vec2 } from "./util/vec2";
+import { ObjectSprite } from "./object/object-data";
 
 export class GDLevel {
     private data: GDObject[] = [];
@@ -18,7 +19,7 @@ export class GDLevel {
     private speedportals:  number[];
     private colortriggers: {};
 
-    renderer: GDRWebRenderer;
+    renderer: Renderer;
     level_col: ObjectCollection;
 
     speed: PortalSpeed;
@@ -28,11 +29,14 @@ export class GDLevel {
 
     start_colors: {};
 
-    constructor(renderer: GDRWebRenderer) {
+    constructor(renderer: Renderer) {
         this.renderer = renderer;
     }
 
     static parseStartColor(level: GDLevel, str: string) {
+        if (str == '')
+            return;
+
         let psplit = str.split('_');
         let props  = {};
 
@@ -66,7 +70,7 @@ export class GDLevel {
         for (let p = 0; p < psplit.length; p += 2)
             props[psplit[p]] = psplit[p + 1];
         
-        // TODO: The speed enum and gd's enum probably don't match up, pls fix!!!
+        // TODO: The speed enum and gd's enum probably don't match up, pls check!!!
         level.speed = GDObject.parse(props['kA4'], 'number', PortalSpeed.ONE);
         
         level.song_offset = GDObject.parse(props['kA13'], 'number', 0);
@@ -95,7 +99,7 @@ export class GDLevel {
         return o;
     }
 
-    static parse(renderer: GDRWebRenderer, data: string): GDLevel {
+    static parse(renderer: Renderer, data: string): GDLevel {
         let level = new GDLevel(renderer);
         let split = data.split(';');
 
@@ -115,24 +119,43 @@ export class GDLevel {
         return level;
     }
 
-    getModelMatrix(o: GDObject) {
-        let def = GDRWebRenderer.objectData[o.id];
+    getModelMatrix(obj: GDObject, objsp: ObjectSprite = null, innerXflip = false, innerYflip = false) {
+        const def = Renderer.objectData.getData(obj.id);
         if (!def) return;
         
         let m = new Mat3();
 
-        let sx = def.width / 62 * 30, sy = def.height / 62 * 30;
+        let sx = objsp.sprite.crop.w / 62 * 30, sy = objsp.sprite.crop.h / 62 * 30;
 
-        sx *= o.xflip ? -1 : 1;
-        sy *= o.yflip ? -1 : 1;
+        let xflip = (obj.xflip ? -1 : 1) * (innerXflip ? -1 : 1);
+        let yflip = (obj.yflip ? -1 : 1) * (innerYflip ? -1 : 1);
+        if (objsp.sprite.rotated) {
+            const temp = sy;
+            sy = -sx;
+            sx = temp;
+        }
 
-        m.translate(new Vec2(o.x, o.y));
+        sx *= obj.scale;
+        sy *= obj.scale;
 
-        if (o.rotation != 0)
-            m.rotate((-o.rotation) * Math.PI / 180);
+        m.translate(new Vec2(obj.x, obj.y));
+
+        if (obj.rotation != 0)
+            m.rotate((-obj.rotation) * Math.PI / 180);
+
+        if (objsp.sprite)
+            m.translate(new Vec2((objsp.sprite.offset.x * xflip) / 62 * 30, (objsp.sprite.offset.y * yflip) / 62 * 30));
+
+        m.translate(new Vec2((objsp.offset.x * xflip) / 62 * 30, (objsp.offset.y * xflip) / 62 * 30));
+        if (obj.xflip)
+            m.translate(new Vec2(objsp.xflipOffset.x / 62 * 30, objsp.xflipOffset.y / 62 * 30));
+        if (obj.yflip)
+            m.translate(new Vec2(objsp.yflipOffset.x / 62 * 30, objsp.yflipOffset.y / 62 * 30));
+        m.scale(new Vec2(objsp.xflip ? -1 : 1, objsp.yflip ? -1 : 1));
+        m.scale(new Vec2(xflip, yflip));
+        m.rotate((-objsp.rotation) * Math.PI / 180);
 
         m.scale(new Vec2(sx, sy));
-
         return m;
     }
 
@@ -219,25 +242,26 @@ export class GDLevel {
     }
 
     gdColorAt(ch: number, x: number): GDColor {
-        if (ch == 1010)
+        if (ch == 0 || ch == 1011)
+            return new BaseColor(255, 255, 255, 1, false);
+        else if (ch == 1010)
             return new BaseColor(0, 0, 0, 1, false);
-        else if (ch == 1011)
-            return new BaseColor(1, 1, 1, 1, false);
 
         let lct: ColorTrigger = null, col = this.getStartColor(ch);
 
-        for (let i of this.colortriggers[ch]) {
-            let ct = this.data[i] as ColorTrigger;
+        if (this.colortriggers[ch])
+            for (let i of this.colortriggers[ch]) {
+                let ct = this.data[i] as ColorTrigger;
 
-            if (!ct) continue;
+                if (!ct) continue;
 
-            if (ct.x >= x) break;
+                if (ct.x >= x) break;
 
-            if (lct)
-                col = this.colorTriggerBlend(lct.x, ct.x, lct.duration, col, lct.getColor());
+                if (lct)
+                    col = this.colorTriggerBlend(lct.x, ct.x, lct.duration, col, lct.getColor());
 
-            lct = ct;
-        }
+                lct = ct;
+            }
 
         if (lct != null) {
             let ca = this.colorTriggerBlend(lct.x, x, lct.duration, col, lct.getColor());
@@ -250,8 +274,23 @@ export class GDLevel {
         return this.gdColorAt(ch, x).evaluate(this);
     }
 
-    addTexture(obj: GDObject, s: SpriteCrop, color: number) {
-        this.level_col.add(this.getModelMatrix(obj), color, s);
+    addTexture(obj: GDObject, objsp: ObjectSprite, color: number) {
+        let def = Renderer.objectData.data[obj.id];
+        if (def.repeat) {
+            let xlim = (Math.abs(objsp.sprite.offset.x) > 4) ? 2 : 1;
+            let ylim = (Math.abs(objsp.sprite.offset.y) > 4) ? 2 : 1;
+            for (let x = 0; x < xlim; x++)
+                for (let y = 0; y < ylim; y++) {
+                    const model = this.getModelMatrix(
+                        obj,
+                        objsp,
+                        x == 1 || (y == 1 && xlim == 1 && def.repeatSymmetry),
+                        y == 1 || (x == 1 && ylim == 1 && def.repeatSymmetry)
+                    );
+                    this.level_col.add(model, color, objsp.sprite);
+                }
+        } else
+            this.level_col.add(this.getModelMatrix(obj, objsp), color, objsp.sprite);
     }
 
     loadSpeedPortals() {
@@ -283,7 +322,7 @@ export class GDLevel {
     }
 
     init() {
-        this.level_col = new ObjectCollection(this.renderer.ctx, this.renderer.sheet);
+        this.level_col = new ObjectCollection(this.renderer.ctx, this.renderer.sheet0, this.renderer.sheet2);
 
         this.loadSpeedPortals();
         this.loadColorTriggers();
@@ -302,23 +341,20 @@ export class GDLevel {
             return a[1] - b[1];
         });
 
-        this.valid_channels = [];
+        this.valid_channels = [0];
 
         for (let [o] of data) {
-            let def = GDRWebRenderer.objectData[o.id];
+            let def = Renderer.objectData.getData(o.id);
             if (!def) continue;
 
-            if (def.detailSprite)
-                if (def.spriteNoColor)
-                    this.addTexture(o, def.detailSprite, o.baseCol);
-                else
-                    this.addTexture(o, def.detailSprite, o.detailCol);
+            const baseColor   = ((def.black && def.detailSprites.length == 0) || def.blackBase) ? 1010 : o.baseCol;
+            const detailColor = def.black ? 1010 : o.detailCol;
 
-            if (def.baseSprite)
-                if (def.spriteNoColor)
-                    this.addTexture(o, def.baseSprite, 0);
-                else
-                    this.addTexture(o, def.baseSprite, o.baseCol);
+            for (const objsp of def.detailSprites)
+                this.addTexture(o, objsp, detailColor);
+
+            for (const objsp of def.baseSprites)
+                this.addTexture(o, objsp, baseColor);
 
             if (o.baseCol != 0 && !this.valid_channels.includes(o.baseCol))
                 this.valid_channels.push(o.baseCol);
