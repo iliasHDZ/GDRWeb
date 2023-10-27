@@ -1,6 +1,6 @@
 {
   "name": "gdrweb",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "Geometry Dash Level Rendering Engine for the browser",
   "main": "index.js",
   "scripts": {
