@@ -1,13 +1,13 @@
 import { RenderContext } from './context';
 import { Color } from './../util/color';
-import { ObjectCollection } from '../render/object-collection';
+import { ObjectBatch } from '../render/object-batch';
 import { ShaderProgram } from './webgl2/program';
 import { BufferObject } from './webgl2/buffer';
 import { BufferArray } from './webgl2/buffer-array';
 import { ArrayType, BufferArrayBuilder } from './webgl2/buffer-array-builder';
 import { Mat3 } from '../util/mat3';
 import { Vec2 } from '../util/vec2';
-import { SpriteCrop, SpriteInfo } from '../util/sprite';
+import { SpriteCrop, SpriteCropInfo } from '../util/sprite';
 
 const VERT_SOURCE = `#version 300 es
 
@@ -55,7 +55,10 @@ flat in int oFlags;
 uniform sampler2D uTexture;
 uniform sampler2D uSecondTexture;
 
-uniform vec4 uColors[1011];
+uniform sampler2D uColorInfoTexture;
+
+// uniform vec4 uColors[1011];
+// uniform bool uColorsBlending[1011];
 
 vec4 getTexFrag(vec2 pos) {
     vec2 texCoords = pos / vec2(textureSize(uTexture, 0));
@@ -63,6 +66,28 @@ vec4 getTexFrag(vec2 pos) {
         return texture(uSecondTexture, texCoords);
     else
         return texture(uTexture, texCoords);
+}
+
+vec4 getChannelColor(int channel) {
+    if (int(oCol) == 1010)
+        return vec4(0, 0, 0, 1);
+    else if (int(oCol) == 1011)
+        return vec4(1, 1, 1, 1);
+
+    float y = (float(channel) + 0.5) / 1011.0;
+
+    return texture(uColorInfoTexture, vec2(0.5 / 2.0, y));
+}
+
+bool isChannelBlending(int channel) {
+    if (int(oCol) == 1010)
+        return false;
+    else if (int(oCol) == 1011)
+        return false;
+
+    float y = (float(channel) + 0.5) / 1011.0;
+
+    return texture(uColorInfoTexture, vec2(1.5 / 2.0, y)).r > 0.5;
 }
 
 void main() {
@@ -126,16 +151,13 @@ void main() {
     } else
         texFrag = getTexFrag(texPos);
 
-    vec4 objColor;
-
-    if (int(oCol) == 1010)
-        objColor = vec4(0, 0, 0, 1);
-    else if (int(oCol) == 1011)
-        objColor = vec4(1, 1, 1, 1);
-    else
-        objColor = uColors[int(oCol)];
+    vec4 objColor = getChannelColor(int(oCol));
+    bool blending = isChannelBlending(int(oCol));
 
     outColor = texFrag * objColor;
+    outColor = vec4(outColor.rgb * outColor.a, outColor.a);
+    if (blending)
+        outColor.a = 0.0;
 }
 `;
 
@@ -157,6 +179,9 @@ export class WebGLContext extends RenderContext {
     quad: BufferObject;
 
     colors: number[];
+    colorsBlending: number[];
+
+    colorInfoTexture: WebGLTexture;
 
     /*
     private texWidth: number;
@@ -193,13 +218,19 @@ export class WebGLContext extends RenderContext {
         this.program = p;
 
         gl.enable(gl.BLEND);
-        //gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-        gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ZERO);
+        gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+        //gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ZERO);
 
         this.colors = [];
+        this.colorsBlending = [];
 
         for (let i = 0; i < 1011 * 4; i++)
             this.colors.push(0);
+
+        for (let i = 0; i < 1011; i++)
+            this.colorsBlending.push(0);
+
+        this.initColorInfoTexture();
 
         /*
         this.texWidth  = 0;
@@ -228,13 +259,15 @@ export class WebGLContext extends RenderContext {
         */
     }
 
-    setColorChannel(channel: number, color: Color) {
+    setColorChannel(channel: number, color: Color, blending: boolean) {
         if (channel < 0 || channel > 1011) return;
 
         this.colors[channel * 4]     = color.r;
         this.colors[channel * 4 + 1] = color.g;
         this.colors[channel * 4 + 2] = color.b;
         this.colors[channel * 4 + 3] = color.a;
+
+        this.colorsBlending[channel] = blending ? 1 : 0;
     }
 
     clearColor(c: Color) {
@@ -267,7 +300,46 @@ export class WebGLContext extends RenderContext {
         return t;
     }
 
-    genQuadStructs(m: Mat3, c: number, sprite: SpriteInfo): any {
+    initColorInfoTexture() {
+        let gl = this.gl;
+
+        this.colorInfoTexture = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, this.colorInfoTexture);
+        
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    }
+
+    updateColorInfoTexture() {
+        let gl = this.gl;
+
+        let buffer = new Uint8Array(2 * 1011 * 4);
+
+        for (let i = 0; i < 1011; i++) {
+            buffer[i * 8 + 0] = this.colors[i * 4 + 0] * 255;
+            buffer[i * 8 + 1] = this.colors[i * 4 + 1] * 255;
+            buffer[i * 8 + 2] = this.colors[i * 4 + 2] * 255;
+            buffer[i * 8 + 3] = this.colors[i * 4 + 3] * 255;
+            buffer[i * 8 + 4] = this.colorsBlending[i] * 255;
+        }
+
+        gl.bindTexture(gl.TEXTURE_2D, this.colorInfoTexture);
+        gl.texImage2D(
+            gl.TEXTURE_2D,
+            0,
+            gl.RGBA,
+            2,
+            1011,
+            0,
+            gl.RGBA,
+            gl.UNSIGNED_BYTE,
+            buffer
+        );
+    }
+
+    genQuadStructs(m: Mat3, c: number, sprite: SpriteCropInfo): any {
         let r = [];
 
         let q = [
@@ -323,7 +395,7 @@ export class WebGLContext extends RenderContext {
         return r;
     }
 
-    genQuad(m: Mat3, c: number, sprite: SpriteInfo): number[] {
+    genQuad(m: Mat3, c: number, sprite: SpriteCropInfo): number[] {
         let r = [];
 
         let q = [
@@ -435,7 +507,7 @@ export class WebGLContext extends RenderContext {
         };
     } */
 
-    compileObjects(c: ObjectCollection) {
+    compileObjects(c: ObjectBatch) {
         const builder = new BufferArrayBuilder(attributes);
 
         for (let o of c.objects) {
@@ -450,16 +522,20 @@ export class WebGLContext extends RenderContext {
         };
     }
 
-    render(c: ObjectCollection) {
+    render(c: ObjectBatch) {
         let gl = this.gl;
 
         this.program.use();
         c.buffer.array.use();
 
+        this.updateColorInfoTexture();
+
         this.program.uV4('uColors', this.colors);
+        this.program.uV1('uColorsBlending', this.colorsBlending);
 
         this.program.uInteger('uTexture', 0);
         this.program.uInteger('uSecondTexture', 1);
+        this.program.uInteger('uColorInfoTexture', 2);
 
         if (c.mainTexture.loaded) {
             gl.activeTexture(gl.TEXTURE0);
@@ -469,6 +545,9 @@ export class WebGLContext extends RenderContext {
                 gl.activeTexture(gl.TEXTURE1);
                 gl.bindTexture(gl.TEXTURE_2D, c.secondTexture.texture);
             }
+            
+            gl.activeTexture(gl.TEXTURE2);
+            gl.bindTexture(gl.TEXTURE_2D, this.colorInfoTexture);
 
             gl.drawArrays(gl.TRIANGLES, 0, c.buffer.count);
         }

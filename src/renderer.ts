@@ -1,17 +1,17 @@
 import { RenderContext } from './context/context'
-import { ObjectCollection } from './render/object-collection';
+import { ObjectBatch } from './render/object-batch';
 import { Texture } from './render/texture';
 import { Color } from './util/color';
 import { Mat3 } from './util/mat3';
 import { Vec2 } from './util/vec2';
-import { GDObjectData, GDObjects } from './object/object-data'
+import { GDObjectInfo, GDObjectsInfo } from './object/info/object-info'
 
-import objectDataList from '../assets/objects.json';
+import objectDataList from '../assets/object_mod.json';
 // import objectDataList from '../assets/data.json';
 import { GDLevel } from './level';
 import { Camera } from './camera';
 import { PlistAtlasLoader } from './object/plist-loader';
-import { SpriteInfo } from './util/sprite';
+import { SpriteCropInfo } from './util/sprite';
 
 export class Renderer {
     ctx: RenderContext;
@@ -21,7 +21,7 @@ export class Renderer {
 
     camera: Camera;
 
-    static objectData: GDObjects = null;
+    static objectInfo: GDObjectsInfo = null;
 
     handlers: {} = {};
 
@@ -34,13 +34,13 @@ export class Renderer {
     }
 
     public static async initTextureInfo(plistpath0: string, plistpath2: string) {
-        if (this.objectData != null)
+        if (this.objectInfo != null)
             return;
 
         const plist0 = await (new PlistAtlasLoader()).load(plistpath0, 0);
         const plist2 = await (new PlistAtlasLoader()).load(plistpath2, 2);
         
-        let atlas: {[key: string]: SpriteInfo} = {};
+        let atlas: {[key: string]: SpriteCropInfo} = {};
 
         for (let [k, v] of Object.entries(plist0))
             atlas[k] = v;
@@ -48,9 +48,9 @@ export class Renderer {
         for (let [k, v] of Object.entries(plist2))
             atlas[k] = v;
 
-        const data = GDObjectData.fromObjectDataList(objectDataList, atlas);
+        const data = GDObjectInfo.fromJSONList(objectDataList, atlas);
 
-        Renderer.objectData = new GDObjects(atlas, data);
+        Renderer.objectInfo = new GDObjectsInfo(atlas, data);
     }
 
     async init(sheetpath0: string, sheetpath2: string) {
@@ -91,13 +91,13 @@ export class Renderer {
     }
 
     render(level: GDLevel) {
-        let bg = level.colorAt(1000, this.camera.x);
+        const [bg, _] = level.colorAt(1000, this.camera.x);
         this.ctx.clearColor(bg);
 
         this.ctx.setViewMatrix(this.camera.getMatrix(this.ctx.canvas.width, this.ctx.canvas.height));
 
         for (let c of level.valid_channels) {
-            this.ctx.setColorChannel(c, level.colorAt(c, this.camera.x));
+            this.ctx.setColorChannel(c, ...level.colorAt(c, this.camera.x));
         }
 
         this.ctx.render(level.level_col);

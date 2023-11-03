@@ -1,4 +1,4 @@
-import { SpriteCrop, SpriteInfo } from "../util/sprite";
+import { SpriteCrop, SpriteCropInfo } from "../util/sprite";
 import * as plist from "../ext/fast-plist";
 import { Vec2 } from "../util/vec2";
 
@@ -59,7 +59,7 @@ export class PlistAtlasLoader {
         return [width, height]
     }
 
-    private parseTexture(name: string, obj: any): SpriteInfo {
+    private parseTexture(name: string, obj: any): SpriteCropInfo {
         if (typeof(obj) != 'object')
             return null;
 
@@ -85,10 +85,10 @@ export class PlistAtlasLoader {
 
         offset = new Vec2(codedOffset[0], codedOffset[1]);
 
-        return new SpriteInfo(name, crop, size, offset, rotated);
+        return new SpriteCropInfo(name, crop, size, offset, rotated);
     }
 
-    async load(path: string, sheetnum = 0): Promise<{ [key: string]: SpriteInfo }> {
+    async load(path: string, sheetnum = 0): Promise<{ [key: string]: SpriteCropInfo }> {
         this.data = plist.parse(await readFile(path));
         
         if (typeof(this.data.frames) != 'object')
@@ -104,14 +104,14 @@ export class PlistAtlasLoader {
 
         this.format = this.metadata.format;
 
-        let ret: {[key: string]: SpriteInfo} = {};
+        let ret: {[key: string]: SpriteCropInfo} = {};
 
         for (let [k, v] of Object.entries(this.data.frames)) {
-            const sprite: SpriteInfo = this.parseTexture(k, v);
+            const sprite: SpriteCropInfo = this.parseTexture(k, v);
             sprite.sheet = sheetnum;
 
             if (sprite != null)
-                ret[sprite.name.split('.')[0]] = sprite;
+                ret[sprite.name] = sprite;
         }
 
         return ret;

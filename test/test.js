@@ -25,7 +25,7 @@ window.onload = () => {
         );
 
         console.log('Loading level...');
-        let level = GDLevel.parse(renderer, objectIds);
+        let level = GDLevel.parse(renderer, bloodbath);
         console.log('Loading complete...');
 
         console.log(level);
@@ -41,7 +41,11 @@ window.onload = () => {
                 renderer.camera.x -= e.movementX / renderer.camera.zoom;
                 renderer.camera.y += e.movementY / renderer.camera.zoom;
 
+                const timeBefore = window.performance.now();
                 renderer.render(level);
+                const timeAfter = window.performance.now();
+
+                // console.log(`FPS: ${Math.floor(1000 / (timeAfter - timeBefore))}`);
             }
         }
 

@@ -20,6 +20,10 @@ export class SpriteCrop {
         this.h = h;
     }
 
+    getSize(): Vec2 {
+        return new Vec2(this.w, this.h);
+    }
+
     static fromObjectData(data: any): SpriteCrop {
         return new SpriteCrop(data.x, data.y, data.w, data.h);
     }
@@ -34,7 +38,7 @@ export class SpriteCrop {
     }
 }
 
-export class SpriteInfo {
+export class SpriteCropInfo {
     public name: string;
     public sheet: number;
     public crop: SpriteCrop;

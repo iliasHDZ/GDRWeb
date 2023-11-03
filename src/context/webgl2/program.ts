@@ -89,6 +89,10 @@ export class ShaderProgram {
         this.gl.uniform4fv(this.uniform(name), buffer);
     }
 
+    uV1(name: string, buffer: number[]) {
+        this.gl.uniform1fv(this.uniform(name), buffer);
+    }
+
     use() {
         this.gl.useProgram(this.program);
     }

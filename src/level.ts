@@ -1,7 +1,7 @@
 import { GDObject } from "./object/object";
 import { PortalSpeed, SpeedPortal } from "./object/speed-portal";
-import { ColorTrigger } from "./object/color-trigger";
-import { ObjectCollection } from "./render/object-collection";
+import { ColorTrigger, ColorTriggerValue } from "./object/trigger/color-trigger";
+import { ObjectBatch } from "./render/object-batch";
 import { Renderer } from "./renderer";
 import { Color } from "./util/color";
 import { GDColor } from "./util/gdcolor";
@@ -9,9 +9,21 @@ import { BaseColor } from "./util/basecolor";
 import { PlayerColor } from "./util/playercolor";
 import { MixedColor } from "./util/mixedcolor";
 import { Mat3 } from "./util/mat3";
-import { SpriteCrop, SpriteInfo } from "./util/sprite";
+import { SpriteCrop, SpriteCropInfo } from "./util/sprite";
 import { Vec2 } from "./util/vec2";
-import { ObjectSprite } from "./object/object-data";
+import { ObjectSprite } from "./object/info/object-sprite";
+import { ValueTriggerTrack } from "./value-trigger-track";
+
+function isSameSet(set1: number[], set2: number[]): boolean {
+    if (set1.length != set2.length)
+        return false;
+
+    for (let a of set1)
+        if (!set2.includes(a))
+            return false;
+
+    return true;
+}
 
 export class GDLevel {
     private data: GDObject[] = [];
@@ -19,15 +31,20 @@ export class GDLevel {
     private speedportals:  number[];
     private colortriggers: {};
 
+    private colorTracks: { [ch: number]: ValueTriggerTrack };
+
     renderer: Renderer;
-    level_col: ObjectCollection;
+    level_col: ObjectBatch;
 
     speed: PortalSpeed;
     song_offset: number;
 
     valid_channels: number[];
 
-    start_colors: {};
+    startColors: { [ch: number]: GDColor };
+
+    groupCombinations: { [comb: number]: number[] } = {};
+    lastGroupCombIdx: number = 0;
 
     constructor(renderer: Renderer) {
         this.renderer = renderer;
@@ -60,7 +77,7 @@ export class GDLevel {
         else
             color = new BaseColor(r, g, b, a, blending);
 
-        level.start_colors[id] = color;
+        level.startColors[id] = color;
     }
 
     static parseLevelProps(level: GDLevel, str: string) {
@@ -76,7 +93,7 @@ export class GDLevel {
         level.song_offset = GDObject.parse(props['kA13'], 'number', 0);
 
         if (props['kS38']) {
-            level.start_colors = {};
+            level.startColors = {};
 
             for (let c of props['kS38'].split('|'))
                 this.parseStartColor(level, c);
@@ -119,51 +136,15 @@ export class GDLevel {
         return level;
     }
 
-    getModelMatrix(obj: GDObject, objsp: ObjectSprite = null, innerXflip = false, innerYflip = false) {
-        const def = Renderer.objectData.getData(obj.id);
-        if (!def) return;
-        
-        let m = new Mat3();
-
-        let sx = objsp.sprite.crop.w / 62 * 30, sy = objsp.sprite.crop.h / 62 * 30;
-
-        let xflip = (obj.xflip ? -1 : 1) * (innerXflip ? -1 : 1);
-        let yflip = (obj.yflip ? -1 : 1) * (innerYflip ? -1 : 1);
-        if (objsp.sprite.rotated) {
-            const temp = sy;
-            sy = -sx;
-            sx = temp;
-        }
-
-        sx *= obj.scale;
-        sy *= obj.scale;
-
-        m.translate(new Vec2(obj.x, obj.y));
-
-        if (obj.rotation != 0)
-            m.rotate((-obj.rotation) * Math.PI / 180);
-
-        if (objsp.sprite)
-            m.translate(new Vec2((objsp.sprite.offset.x * xflip) / 62 * 30, (objsp.sprite.offset.y * yflip) / 62 * 30));
-
-        m.translate(new Vec2((objsp.offset.x * xflip) / 62 * 30, (objsp.offset.y * xflip) / 62 * 30));
-        if (obj.xflip)
-            m.translate(new Vec2(objsp.xflipOffset.x / 62 * 30, objsp.xflipOffset.y / 62 * 30));
-        if (obj.yflip)
-            m.translate(new Vec2(objsp.yflipOffset.x / 62 * 30, objsp.yflipOffset.y / 62 * 30));
-        m.scale(new Vec2(objsp.xflip ? -1 : 1, objsp.yflip ? -1 : 1));
-        m.scale(new Vec2(xflip, yflip));
-        m.rotate((-objsp.rotation) * Math.PI / 180);
-
-        m.scale(new Vec2(sx, sy));
-        return m;
+    getObjects(): GDObject[] {
+        return this.data;
     }
 
     getStartColor(ch: number): GDColor {
-        if (!this.start_colors[ch])
-            return new BaseColor(255, 255, 255, 1, false);
+        if (!this.startColors[ch])
+            return BaseColor.white();
 
-        return this.start_colors[ch];
+        return this.startColors[ch];
     }
 
     timeAt(x: number): number {
@@ -220,77 +201,34 @@ export class GDLevel {
 
         return new Color(0, 0, 0, opacity);
     }
-    
-    static mixGDColors(col1: GDColor, col2: GDColor, mix: number): GDColor {
-        if (col1 instanceof BaseColor && col2 instanceof BaseColor)
-            return BaseColor.fromColor(col1.evaluate(null).blend(col2.evaluate(null), mix), mix <= 0 ? col1.blending : col2.blending);
-
-        if (mix == 0)
-            return col1;
-
-        if (mix == 1)
-            return col2;
-
-        return new MixedColor(col1, col2, mix);
-    }
-
-    colorTriggerBlend(tx: number, x: number, dur: number, from: GDColor, to: GDColor): GDColor {
-        if (dur <= 0)
-            return to;
-        else
-            return GDLevel.mixGDColors(from, to, ( this.timeAt(x) - this.timeAt(tx) ) / dur);
-    }
 
     gdColorAt(ch: number, x: number): GDColor {
-        if (ch == 0 || ch == 1011)
-            return new BaseColor(255, 255, 255, 1, false);
-        else if (ch == 1010)
-            return new BaseColor(0, 0, 0, 1, false);
+        const track = this.colorTracks[ch];
+        if (!track)
+            return BaseColor.white();
 
-        let lct: ColorTrigger = null, col = this.getStartColor(ch);
+        const time = this.timeAt(x);
+        const col = track.valueAt(time);
 
-        if (this.colortriggers[ch])
-            for (let i of this.colortriggers[ch]) {
-                let ct = this.data[i] as ColorTrigger;
+        if (!(col instanceof ColorTriggerValue))
+            return BaseColor.white();
 
-                if (!ct) continue;
-
-                if (ct.x >= x) break;
-
-                if (lct)
-                    col = this.colorTriggerBlend(lct.x, ct.x, lct.duration, col, lct.getColor());
-
-                lct = ct;
-            }
-
-        if (lct != null) {
-            let ca = this.colorTriggerBlend(lct.x, x, lct.duration, col, lct.getColor());
-            return ca;
-        } else
-            return col;
+        return col.color;
     }
 
-    colorAt(ch: number, x: number): Color {
+    colorAt(ch: number, x: number): [Color, boolean] {
         return this.gdColorAt(ch, x).evaluate(this);
     }
 
-    addTexture(obj: GDObject, objsp: ObjectSprite, color: number) {
-        let def = Renderer.objectData.data[obj.id];
-        if (def.repeat) {
-            let xlim = (Math.abs(objsp.sprite.offset.x) > 4) ? 2 : 1;
-            let ylim = (Math.abs(objsp.sprite.offset.y) > 4) ? 2 : 1;
-            for (let x = 0; x < xlim; x++)
-                for (let y = 0; y < ylim; y++) {
-                    const model = this.getModelMatrix(
-                        obj,
-                        objsp,
-                        x == 1 || (y == 1 && xlim == 1 && def.repeatSymmetry),
-                        y == 1 || (x == 1 && ylim == 1 && def.repeatSymmetry)
-                    );
-                    this.level_col.add(model, color, objsp.sprite);
-                }
-        } else
-            this.level_col.add(this.getModelMatrix(obj, objsp), color, objsp.sprite);
+    addTexture(object: GDObject, sprite: ObjectSprite) {
+        const objectMatrix = object.getModelMatrix();
+        const spriteMatrix = sprite.getRenderModelMatrix();
+
+        this.level_col.add(
+            objectMatrix.multiply(spriteMatrix),
+            object.getColorChannel(sprite.colorType),
+            sprite.sprite
+        );
     }
 
     loadSpeedPortals() {
@@ -321,11 +259,54 @@ export class GDLevel {
             (v as number[]).sort((a, b) => this.data[a].x - this.data[b].x);
     }
 
+    loadColorTracks() {
+        this.colorTracks = {};
+
+        for (let [ch, color] of Object.entries(this.startColors))
+            this.colorTracks[ch] = new ValueTriggerTrack(new ColorTriggerValue(color));
+
+        for (let obj of this.data) {
+            if (!(obj && obj instanceof ColorTrigger))
+                continue;
+
+            if (!this.colorTracks[obj.color]) // TODO: Shorten the following line:
+                this.colorTracks[obj.color] = new ValueTriggerTrack(new ColorTriggerValue(BaseColor.white()));
+            
+            this.colorTracks[obj.color].insertTrigger(obj, this.timeAt(obj.x));
+        }
+    }
+
+    getGroupCombinationIdx(groups: number[]): number | null {
+        for (let [k, v] of Object.entries(this.groupCombinations))
+            if (isSameSet(v, groups))
+                return +k;
+        
+        return null;
+    }
+
+    loadGroups() {
+        for (let obj of this.data) {
+            if (obj.groups.length == 0) continue;
+
+            let idx = this.getGroupCombinationIdx(obj.groups);
+            if (idx != null) {
+                obj.groupComb = idx;
+                continue;
+            }
+
+            idx = this.lastGroupCombIdx++;
+
+            this.groupCombinations[idx] = obj.groups;
+        }
+    }
+
     init() {
-        this.level_col = new ObjectCollection(this.renderer.ctx, this.renderer.sheet0, this.renderer.sheet2);
+        this.level_col = new ObjectBatch(this.renderer.ctx, this.renderer.sheet0, this.renderer.sheet2);
 
         this.loadSpeedPortals();
-        this.loadColorTriggers();
+        this.loadGroups();
+        //this.loadColorTriggers();
+        this.loadColorTracks();
 
         let data: [GDObject, number][] = [];
 
@@ -343,24 +324,21 @@ export class GDLevel {
 
         this.valid_channels = [0];
 
-        for (let [o] of data) {
-            let def = Renderer.objectData.getData(o.id);
-            if (!def) continue;
+        for (let [obj] of data) {
+            const info = Renderer.objectInfo.getData(obj.id);
+            if (!info) continue;
 
-            const baseColor   = ((def.black && def.detailSprites.length == 0) || def.blackBase) ? 1010 : o.baseCol;
-            const detailColor = def.black ? 1010 : o.detailCol;
+            if (info.rootSprite) {
+                info.rootSprite.enumerateAllByDepth(sprite => {
+                    this.addTexture(obj, sprite);
+                });
+            }
 
-            for (const objsp of def.detailSprites)
-                this.addTexture(o, objsp, detailColor);
+            if (obj.baseCol != 0 && !this.valid_channels.includes(obj.baseCol))
+                this.valid_channels.push(obj.baseCol);
 
-            for (const objsp of def.baseSprites)
-                this.addTexture(o, objsp, baseColor);
-
-            if (o.baseCol != 0 && !this.valid_channels.includes(o.baseCol))
-                this.valid_channels.push(o.baseCol);
-
-            if (o.detailCol != 0 && !this.valid_channels.includes(o.detailCol))
-                this.valid_channels.push(o.detailCol);
+            if (obj.detailCol != 0 && !this.valid_channels.includes(obj.detailCol))
+                this.valid_channels.push(obj.detailCol);
         }
 
         this.level_col.compile();

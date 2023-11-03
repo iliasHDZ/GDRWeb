@@ -18,11 +18,15 @@ export class BaseColor extends GDColor {
         this.blending = blending;
     }
 
+    static white(): BaseColor {
+        return new BaseColor(255, 255, 255, 1, false);
+    }
+
     static fromColor(color: Color, blending: boolean): BaseColor {
         return new BaseColor(color.r * 255, color.g * 255, color.b * 255, color.a, blending);
     }
 
-    evaluate(level: GDLevel): Color {
-        return Color.fromRGBA(this.r, this.g, this.b, this.opacity * 255);
+    evaluate(level: GDLevel): [Color, boolean] {
+        return [Color.fromRGBA(this.r, this.g, this.b, this.opacity * 255), this.blending];
     }
 }
