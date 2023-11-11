@@ -1,9 +1,3 @@
-build/
-
 node_modules/
-
-testlevels/
-
-dist/
 
 package-lock.json

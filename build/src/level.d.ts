@@ -1,0 +1,47 @@
+import { GDObject } from "./object/object";
+import { PortalSpeed } from "./object/speed-portal";
+import { ObjectBatch } from "./render/object-batch";
+import { Renderer } from "./renderer";
+import { Color } from "./util/color";
+import { GDColor } from "./util/gdcolor";
+import { ObjectSprite } from "./object/info/object-sprite";
+import { GroupManager } from "./groups";
+import { ObjectHSVManager } from "./objecthsv";
+import { Profiler } from "./profiler";
+export declare class GDLevel {
+    private data;
+    private speedportals;
+    private colorTrackList;
+    private pulseTrackList;
+    renderer: Renderer;
+    level_col: ObjectBatch;
+    speed: PortalSpeed;
+    song_offset: number;
+    valid_channels: number[];
+    startColors: {
+        [ch: number]: GDColor;
+    };
+    groupManager: GroupManager;
+    objectHSVManager: ObjectHSVManager;
+    objectHSVsLoaded: boolean;
+    profiler: Profiler;
+    constructor(renderer: Renderer);
+    static parseStartColor(level: GDLevel, str: string): void;
+    static getLevelSpeedEnum(speed: number): PortalSpeed;
+    static parseLevelProps(level: GDLevel, str: string): void;
+    static getObject(data: {}): GDObject;
+    static parse(renderer: Renderer, data: string): GDLevel;
+    getObjects(): GDObject[];
+    getStartColor(ch: number): GDColor;
+    timeAt(x: number): number;
+    posAt(s: number): number;
+    getPlayerColor(plrcol: number, opacity: number): Color;
+    gdColorAt(ch: number, time: number): GDColor;
+    colorAtTime(ch: number, time: number, iterations?: number): [Color, boolean];
+    colorAtPos(ch: number, x: number): [Color, boolean];
+    addTexture(object: GDObject, sprite: ObjectSprite, groups: number[], hsvId: number): void;
+    loadSpeedPortals(): void;
+    loadColorTracks(): void;
+    loadPulseTracks(): void;
+    init(): void;
+}
