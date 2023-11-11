@@ -14,7 +14,7 @@ It is a work-in-progress rendering engine for rendering Geometry Dash levels on 
 
 The engine is also pretty fast as it uses batch rendering and currently renders everything in one draw call. It is also random access meaning that you can go anywhere in a level and the renderer will automatically recalculate all trigger states for you.
 
-![Acu in GDRWeb](acu.png)
+![Acu in GDRWeb](https://raw.githubusercontent.com/iliasHDZ/GDRWeb/main/acu.png)
 
 ## How to use GDRWeb?
 GDRWeb is easy to include into your Javascript project. You need to install the GDRWeb NPM package into your project. After that, you can require GDRWeb in a Javascript file and use it like this:
