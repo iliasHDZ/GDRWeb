@@ -105,7 +105,7 @@ window.onload = () => {
         playing = false;
 
         function play() {
-            let audio = new Audio('levels/Epilogue.mp3');
+            let audio = new Audio('songs/Epilogue.mp3');
             audio.currentTime = level.song_offset;
             playing = true;
             audio.play();
