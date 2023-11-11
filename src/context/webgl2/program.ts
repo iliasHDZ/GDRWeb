@@ -1,3 +1,4 @@
+import { Color } from "../../util/color";
 import { Mat3 } from "../../util/mat3";
 import { Vec2 } from "../../util/vec2";
 
@@ -79,6 +80,10 @@ export class ShaderProgram {
 
     uVec2(name: string, v: Vec2) {
         this.gl.uniform2fv(this.uniform(name), new Float32Array(v.buffer()));
+    }
+
+    uColor(name: string, v: Color) {
+        this.gl.uniform4fv(this.uniform(name), new Float32Array([v.r, v.g, v.b, v.a]));
     }
 
     uInteger(name: string, i: number) {

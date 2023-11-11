@@ -2,7 +2,8 @@ import { Renderer } from "../renderer";
 import { GDObjectInfo, ZLayer } from "./info/object-info";
 import { ObjectSpriteColor } from "./info/object-sprite";
 import { Mat3 } from "../util/mat3";
-import { Vec2 } from "../main";
+import { Vec2 } from "..";
+import { HSVShift } from "../util/hsvshift";
 
 export class GDObject {
     public id: number;
@@ -24,6 +25,12 @@ export class GDObject {
     
     public baseCol: number;
     public detailCol: number;
+
+    public baseHSVShift: HSVShift | null = null;
+    public detailHSVShift: HSVShift | null = null;
+
+    public baseHSVShiftId: number = 0;
+    public detailHSVShiftId: number = 0;
 
     static parse(data: string, type: string, def: any): any {
         if (!data) return def;
@@ -63,6 +70,14 @@ export class GDObject {
         this.rotation = GDObject.parse(data[6],  'number',  0);
         this.scale    = GDObject.parse(data[32], 'number',  1);
         this.groups   = GDObject.parse(data[57], 'array',   []);
+
+        const baseShiftEnabled   = GDObject.parse(data[41], 'boolean', false);
+        const detailShiftEnabled = GDObject.parse(data[42], 'boolean', false);
+
+        if (baseShiftEnabled)
+            this.baseHSVShift = HSVShift.parse(data[43]);
+        if (detailShiftEnabled)
+            this.detailHSVShift = HSVShift.parse(data[44]);
 
         const singleGroup = GDObject.parse(data[33], 'number', null);
         if (singleGroup)

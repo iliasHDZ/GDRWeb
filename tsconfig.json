@@ -4,7 +4,8 @@
         "target": "es2020",
         "outDir": "./build",
         "resolveJsonModule": true,
-        "esModuleInterop": true
+        "esModuleInterop": true,
+        "declaration": true
     },
     "include": ["src/*"]
 }

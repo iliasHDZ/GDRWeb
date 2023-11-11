@@ -4,13 +4,20 @@
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600&family=Roboto&display=swap" rel="stylesheet">
     <title>GDRWeb Test Document</title>
 </head>
-<body>
-    <canvas id="canvas" style="border: 1px solid black;" width="1280" height="720"></canvas>
-    <button id="play">Play</button>
+<body style="font-family: 'Manrope', sans-serif; font-family: 'Roboto', sans-serif; margin: 0; overflow: hidden;">
+    <canvas id="canvas" width="1280" height="720"></canvas>
+    <div style="position: absolute; color: lime; top: 20px; left: 20px; padding: 10px; background-color: black;" id="fps">FPS: 0 (Render duration: 0ms)</div>
+    <div style="position: absolute; color: lime; bottom: 20px; left: 20px; padding: 10px; background-color: black;" id="mouse">X: 0, Y: 0</div>
+    <!-- <div id="profile"></div>
     <script src="boj.js"></script>
     <script src="ocularmiracle.js"></script>
+    <script src="zodiac.js"></script> -->
+    <script src="whitespace.js"></script>
     <script src="bundle.js"></script>
 </body>
 </html>

@@ -1,6 +1,7 @@
 import { BaseColor } from "../../util/basecolor";
-import { Color } from "../../util/color";
+import { CopyColor } from "../../util/copycolor";
 import { GDColor } from "../../util/gdcolor";
+import { HSVShift } from "../../util/hsvshift";
 import { MixedColor } from "../../util/mixedcolor";
 import { PlayerColor } from "../../util/playercolor";
 import { GDObject } from "../object";
@@ -12,6 +13,10 @@ export class ColorTriggerValue extends TriggerValue {
     constructor(color: GDColor) {
         super();
         this.color = color;
+    }
+
+    static default(): ColorTriggerValue {
+        return new ColorTriggerValue(BaseColor.white());
     }
 };
 
@@ -26,7 +31,13 @@ export class ColorTrigger extends ValueTrigger {
     plrcol1: boolean;
     plrcol2: boolean;
 
+    copyId: number;
+    copyOpacity: boolean;
+    copyHsvShift: HSVShift;
+
     color: number;
+
+    duration: number;
 
     applyData(data: {}) {
         super.applyData(data);
@@ -42,6 +53,10 @@ export class ColorTrigger extends ValueTrigger {
 
         this.plrcol1 = GDObject.parse(data[15], 'boolean', false);
         this.plrcol2 = GDObject.parse(data[16], 'boolean', false);
+
+        this.copyId = GDObject.parse(data[50], 'number', 0);
+        this.copyOpacity  = GDObject.parse(data[60], 'boolean', false);
+        this.copyHsvShift = HSVShift.parse(data[49]);
 
         if (data[23])
             this.color = +data[23];
@@ -65,6 +80,9 @@ export class ColorTrigger extends ValueTrigger {
     }
 
     getColor(): GDColor {
+        if (this.copyId != 0)
+            return new CopyColor(this.copyId, this.copyOpacity, this.copyHsvShift, this.opacity, this.blending);
+        
         if (this.plrcol1 || this.plrcol2)
             return new PlayerColor(this.plrcol1 ? 0 : 1, this.opacity, this.blending);
 
@@ -82,6 +100,10 @@ export class ColorTrigger extends ValueTrigger {
             return new ColorTriggerValue(endCol);
 
         return new ColorTriggerValue(MixedColor.mix(startCol, endCol, deltaTime / this.duration));
+    }
+
+    public getDuration(): number {
+        return this.duration;
     }
 
     static isOfType(id: number): boolean {

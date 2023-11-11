@@ -1,37 +1,32 @@
 import { GDObject } from "./object/object";
 import { PortalSpeed, SpeedPortal } from "./object/speed-portal";
 import { ColorTrigger, ColorTriggerValue } from "./object/trigger/color-trigger";
+import { AlphaTrigger } from "./object/trigger/alpha-trigger";
+import { PulseTargetType, PulseTrigger, PulseTriggerValue } from "./object/trigger/pulse-trigger";
+import { MoveTrigger } from "./object/trigger/move-trigger";
+import { ToggleTrigger } from "./object/trigger/toggle-trigger";
 import { ObjectBatch } from "./render/object-batch";
 import { Renderer } from "./renderer";
 import { Color } from "./util/color";
 import { GDColor } from "./util/gdcolor";
 import { BaseColor } from "./util/basecolor";
 import { PlayerColor } from "./util/playercolor";
-import { MixedColor } from "./util/mixedcolor";
-import { Mat3 } from "./util/mat3";
-import { SpriteCrop, SpriteCropInfo } from "./util/sprite";
-import { Vec2 } from "./util/vec2";
-import { ObjectSprite } from "./object/info/object-sprite";
-import { ValueTriggerTrack } from "./value-trigger-track";
-
-function isSameSet(set1: number[], set2: number[]): boolean {
-    if (set1.length != set2.length)
-        return false;
-
-    for (let a of set1)
-        if (!set2.includes(a))
-            return false;
-
-    return true;
-}
+import { CopyColor } from "./util/copycolor";
+import { ObjectSprite, ObjectSpriteColor } from "./object/info/object-sprite";
+import { ValueTriggerTrack, ValueTriggerTrackList } from "./value-trigger-track";
+import { GroupManager } from "./groups";
+import { HSVShift } from "./util/hsvshift";
+import { ObjectHSVManager } from "./objecthsv";
+import { ValueTrigger } from "./object/trigger/value-trigger";
+import { Profiler } from "./profiler";
 
 export class GDLevel {
     private data: GDObject[] = [];
 
-    private speedportals:  number[];
-    private colortriggers: {};
+    private speedportals: number[];
 
-    private colorTracks: { [ch: number]: ValueTriggerTrack };
+    private colorTrackList: ValueTriggerTrackList;
+    private pulseTrackList: ValueTriggerTrackList;
 
     renderer: Renderer;
     level_col: ObjectBatch;
@@ -43,11 +38,20 @@ export class GDLevel {
 
     startColors: { [ch: number]: GDColor };
 
-    groupCombinations: { [comb: number]: number[] } = {};
-    lastGroupCombIdx: number = 0;
+    groupManager: GroupManager;
+    objectHSVManager: ObjectHSVManager;
+
+    objectHSVsLoaded: boolean = false;
+
+    profiler: Profiler;
 
     constructor(renderer: Renderer) {
         this.renderer = renderer;
+
+        this.groupManager = new GroupManager(this);
+        this.objectHSVManager = new ObjectHSVManager(this);
+
+        this.profiler = new Profiler();
     }
 
     static parseStartColor(level: GDLevel, str: string) {
@@ -70,14 +74,31 @@ export class GDLevel {
         let id = GDObject.parse(props[6], 'number', 1);
         let a = GDObject.parse(props[7], 'number', 1);
 
+        let copyId = GDObject.parse(props[9], 'number', 0);
+        let copyOpacity = GDObject.parse(props[17], 'boolean', 0);
+        let copyHsvShift = HSVShift.parse(props[10]);
+
         let color: GDColor;
 
-        if (plr != -1)
+        if (copyId != 0)
+            color = new CopyColor(copyId, copyOpacity, copyHsvShift, a, blending);
+        else if (plr != -1)
             color = new PlayerColor(plr - 1, a, blending);
         else
             color = new BaseColor(r, g, b, a, blending);
 
         level.startColors[id] = color;
+    }
+
+    static getLevelSpeedEnum(speed: number) {
+        switch (speed) {
+        default:
+        case 0: return PortalSpeed.ONE;
+        case 1: return PortalSpeed.HALF;
+        case 2: return PortalSpeed.TWO;
+        case 3: return PortalSpeed.THREE;
+        case 4: return PortalSpeed.FOUR;
+        }
     }
 
     static parseLevelProps(level: GDLevel, str: string) {
@@ -87,8 +108,8 @@ export class GDLevel {
         for (let p = 0; p < psplit.length; p += 2)
             props[psplit[p]] = psplit[p + 1];
         
-        // TODO: The speed enum and gd's enum probably don't match up, pls check!!!
-        level.speed = GDObject.parse(props['kA4'], 'number', PortalSpeed.ONE);
+        const speed = GDObject.parse(props['kA4'], 'number', 0);
+        level.speed = GDLevel.getLevelSpeedEnum(speed);
         
         level.song_offset = GDObject.parse(props['kA13'], 'number', 0);
 
@@ -103,17 +124,25 @@ export class GDLevel {
     static getObject(data: {}): GDObject {
         let id = data[1] || 1;
 
-        let o: GDObject;
+        let obj: GDObject;
     
         if (SpeedPortal.isOfType(id))
-            o = new SpeedPortal();
+            obj = new SpeedPortal();
         else if (ColorTrigger.isOfType(id))
-            o = new ColorTrigger();
+            obj = new ColorTrigger();
+        else if (AlphaTrigger.isOfType(id))
+            obj = new AlphaTrigger();
+        else if (PulseTrigger.isOfType(id))
+            obj = new PulseTrigger();
+        else if (MoveTrigger.isOfType(id))
+            obj = new MoveTrigger();
+        else if (ToggleTrigger.isOfType(id))
+            obj = new ToggleTrigger();
         else
-            o = new GDObject();
+            obj = new GDObject();
     
-        o.applyData(data);
-        return o;
+        obj.applyData(data);
+        return obj;
     }
 
     static parse(renderer: Renderer, data: string): GDLevel {
@@ -202,13 +231,8 @@ export class GDLevel {
         return new Color(0, 0, 0, opacity);
     }
 
-    gdColorAt(ch: number, x: number): GDColor {
-        const track = this.colorTracks[ch];
-        if (!track)
-            return BaseColor.white();
-
-        const time = this.timeAt(x);
-        const col = track.valueAt(time);
+    gdColorAt(ch: number, time: number): GDColor {
+        const col = this.colorTrackList.valueAt(ch, time);
 
         if (!(col instanceof ColorTriggerValue))
             return BaseColor.white();
@@ -216,18 +240,36 @@ export class GDLevel {
         return col.color;
     }
 
-    colorAt(ch: number, x: number): [Color, boolean] {
-        return this.gdColorAt(ch, x).evaluate(this);
+    colorAtTime(ch: number, time: number, iterations: number = 8): [Color, boolean] {
+        if (iterations == 8) this.profiler.start("Color Trigger Evaluation");
+        let [color, blending] = this.gdColorAt(ch, time).evaluate(this, time, iterations);
+        if (iterations == 8) this.profiler.end();
+
+        if (iterations == 8) this.profiler.start("Pulse Trigger Evaluation");
+        const pulse = this.pulseTrackList.valueAt(ch, time) as PulseTriggerValue;
+        color = pulse.applyToColor(color);
+        if (iterations == 8) this.profiler.end();
+
+        return [
+            color,
+            blending
+        ];
     }
 
-    addTexture(object: GDObject, sprite: ObjectSprite) {
+    colorAtPos(ch: number, x: number): [Color, boolean] {
+        return this.colorAtTime(ch, this.timeAt(x));
+    }
+
+    addTexture(object: GDObject, sprite: ObjectSprite, groups: number[], hsvId: number) {
         const objectMatrix = object.getModelMatrix();
         const spriteMatrix = sprite.getRenderModelMatrix();
 
         this.level_col.add(
             objectMatrix.multiply(spriteMatrix),
             object.getColorChannel(sprite.colorType),
-            sprite.sprite
+            sprite.sprite,
+            groups,
+            hsvId
         );
     }
 
@@ -241,72 +283,50 @@ export class GDLevel {
         this.speedportals.sort((a, b) => this.data[a].x - this.data[b].x);
     }
 
-    loadColorTriggers() {
-        this.colortriggers = {};
-
-        for (let i = 0; i < this.data.length; i++) {
-            let o = this.data[i];
-            
-            if (o && o instanceof ColorTrigger) {
-                if (!this.colortriggers[o.color])
-                    this.colortriggers[o.color] = [];
-
-                this.colortriggers[o.color].push(i);
-            }
-        }
-
-        for (let [k, v] of Object.entries(this.colortriggers))
-            (v as number[]).sort((a, b) => this.data[a].x - this.data[b].x);
-    }
-
     loadColorTracks() {
-        this.colorTracks = {};
+        this.colorTrackList = new ValueTriggerTrackList(this, ColorTriggerValue.default());
 
         for (let [ch, color] of Object.entries(this.startColors))
-            this.colorTracks[ch] = new ValueTriggerTrack(new ColorTriggerValue(color));
+            this.colorTrackList.createTrackWithStartValue(+ch, new ColorTriggerValue(color));
 
-        for (let obj of this.data) {
-            if (!(obj && obj instanceof ColorTrigger))
-                continue;
+        this.colorTrackList.loadAllTriggers((trigger: ValueTrigger) => {
+            if (!(trigger instanceof ColorTrigger))
+                return null;
 
-            if (!this.colorTracks[obj.color]) // TODO: Shorten the following line:
-                this.colorTracks[obj.color] = new ValueTriggerTrack(new ColorTriggerValue(BaseColor.white()));
-            
-            this.colorTracks[obj.color].insertTrigger(obj, this.timeAt(obj.x));
-        }
+            return trigger.color;
+        });
     }
 
-    getGroupCombinationIdx(groups: number[]): number | null {
-        for (let [k, v] of Object.entries(this.groupCombinations))
-            if (isSameSet(v, groups))
-                return +k;
-        
-        return null;
-    }
+    loadPulseTracks() {
+        this.pulseTrackList = new ValueTriggerTrackList(this, PulseTriggerValue.empty());
 
-    loadGroups() {
-        for (let obj of this.data) {
-            if (obj.groups.length == 0) continue;
+        this.pulseTrackList.loadAllTriggers((trigger: ValueTrigger) => {
+            if (!(trigger instanceof PulseTrigger))
+                return null;
 
-            let idx = this.getGroupCombinationIdx(obj.groups);
-            if (idx != null) {
-                obj.groupComb = idx;
-                continue;
-            }
+            if (trigger.targetType != PulseTargetType.CHANNEL || trigger.targetId == 0)
+                return null;
 
-            idx = this.lastGroupCombIdx++;
-
-            this.groupCombinations[idx] = obj.groups;
-        }
+            return trigger.targetId;
+        });
     }
 
     init() {
         this.level_col = new ObjectBatch(this.renderer.ctx, this.renderer.sheet0, this.renderer.sheet2);
 
         this.loadSpeedPortals();
-        this.loadGroups();
-        //this.loadColorTriggers();
         this.loadColorTracks();
+        this.loadPulseTracks();
+
+        this.groupManager.reset();
+        this.groupManager.loadGroups();
+        this.groupManager.compressLargeGroupCombinations(4);
+        this.groupManager.loadAlphaTracks();
+        this.groupManager.loadMoveTracks();
+        this.groupManager.loadToggleTracks();
+
+        this.objectHSVManager.reset();
+        this.objectHSVManager.loadObjectHSVs();
 
         let data: [GDObject, number][] = [];
 
@@ -329,8 +349,19 @@ export class GDLevel {
             if (!info) continue;
 
             if (info.rootSprite) {
+                const groups = this.groupManager.getGroupCombination(obj.groupComb ?? null);
+
+                const baseHSVId   = obj.baseHSVShiftId;
+                const detailHSVId = obj.detailHSVShiftId;
+
                 info.rootSprite.enumerateAllByDepth(sprite => {
-                    this.addTexture(obj, sprite);
+                    let hsvId = 0;
+                    if (sprite.colorType == ObjectSpriteColor.BASE)
+                        hsvId = baseHSVId;
+                    if (sprite.colorType == ObjectSpriteColor.DETAIL)
+                        hsvId = detailHSVId;
+
+                    this.addTexture(obj, sprite, groups, hsvId);
                 });
             }
 

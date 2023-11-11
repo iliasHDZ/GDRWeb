@@ -87,6 +87,14 @@ export class Mat3 {
         return v;
     }
 
+    static multiplyMatrices(...matrices: Mat3[]): Mat3 {
+        let res: Mat3 = matrices[0];
+        for (let i = 1; i < matrices.length; i++)
+            res = res.multiply(matrices[i]);
+
+        return res;
+    }
+
     multiply(mat: Mat3): Mat3 {
         const a = this.d;
         const b = mat.d;

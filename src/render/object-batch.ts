@@ -21,8 +21,8 @@ export class ObjectBatch {
         this.ctx = ctx;
     }
 
-    add(model: Mat3, color: number, sprite: SpriteCropInfo) {
-        this.objects.push(new TextureObject(model, color, sprite));
+    add(model: Mat3, color: number, sprite: SpriteCropInfo, groups: number[], hsvId: number) {
+        this.objects.push(new TextureObject(model, color, sprite, groups, hsvId));
     }
 
     compile() {

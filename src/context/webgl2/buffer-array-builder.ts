@@ -121,8 +121,11 @@ export class BufferArrayBuilder {
         let index = 0;
 
         for (let i = 0; i < this.count; i++) {
-            for (let [_, v] of Object.entries(this.layout)) {
-                offset = this.insertData(view, offset, v, this.data[index]);
+            for (let [n, v] of Object.entries(this.layout)) {
+                if (!n.startsWith('_'))
+                    offset = this.insertData(view, offset, v, this.data[index]);
+                else
+                    offset += BufferArrayBuilder.sizeOfType(v);
                 index++;
             }
         }
@@ -138,18 +141,18 @@ export class BufferArrayBuilder {
         const stride = this.instanceSize();
         let offset = 0;
 
-        console.log(stride);
-
         for (let [k, v] of Object.entries(this.layout)) {
-            array.add(
-                program.attrib(k),
-                buffer,
-                BufferArrayBuilder.getTypeCount(v),
-                offset,
-                stride,
-                0,
-                BufferArrayBuilder.getGLType(gl, v)
-            );
+            if (!k.startsWith('_')) {
+                array.add(
+                    program.attrib(k),
+                    buffer,
+                    BufferArrayBuilder.getTypeCount(v),
+                    offset,
+                    stride,
+                    0,
+                    BufferArrayBuilder.getGLType(gl, v)
+                );
+            }
             offset += BufferArrayBuilder.sizeOfType(v);
         }
 

@@ -5,5 +5,5 @@ export abstract class GDColor {
     public opacity:  number;
     public blending: boolean;
 
-    abstract evaluate(level: GDLevel): [Color, boolean];
+    abstract evaluate(level: GDLevel, time: number, iterations: number): [Color, boolean];
 }

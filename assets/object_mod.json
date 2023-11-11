@@ -37746,8 +37746,8 @@
                 "scale_y": 1.0,
                 "flip_x": false,
                 "flip_y": false,
-                "x": -0.25,
-                "y": 0.25,
+                "x": 0,
+                "y": 0,
                 "z": -1,
                 "rot": 0.0,
                 "color_type": "Detail"
@@ -37760,8 +37760,8 @@
                 "scale_y": 1.0,
                 "flip_x": false,
                 "flip_y": false,
-                "x": 0.25,
-                "y": 0.25,
+                "x": 0,
+                "y": 0,
                 "z": -1,
                 "rot": 0.0,
                 "color_type": "Detail"
@@ -37774,8 +37774,8 @@
                 "scale_y": -1.0,
                 "flip_x": false,
                 "flip_y": false,
-                "x": 0.25,
-                "y": -0.25,
+                "x": 0,
+                "y": 0,
                 "z": -1,
                 "rot": 0.0,
                 "color_type": "Detail"
@@ -37788,8 +37788,8 @@
                 "scale_y": -1.0,
                 "flip_x": false,
                 "flip_y": false,
-                "x": -0.25,
-                "y": -0.25,
+                "x": 0,
+                "y": 0,
                 "z": -1,
                 "rot": 0.0,
                 "color_type": "Detail"

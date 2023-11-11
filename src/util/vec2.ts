@@ -23,6 +23,10 @@ export class Vec2 {
         return new Vec2(this.x / vec.x, this.y / vec.y);
     }
 
+    neg(): Vec2 {
+        return new Vec2(-this.x, -this.y);
+    }
+
     spritePixelsToUnits(spriteQuality: number): Vec2 {
         return new Vec2(this.x / spriteQuality * 30, this.y / spriteQuality * 30);
     }

@@ -2,12 +2,12 @@
   "name": "gdrweb",
   "version": "0.1.0",
   "description": "Geometry Dash Level Rendering Engine for the browser",
-  "main": "index.js",
+  "main": "build/src/index.js",
+  "types": "build/src/index.d.js",
   "scripts": {
     "build": "npx tsc -p .",
     "buildntest": "npx tsc -p . && browserify test/test.js > test/bundle.js",
-    "server": "http-server -p 8000 -c -1",
-    "buildlibrary": "npx tsc -p ./tsconfig_webpack.json && npx webpack --config webpack.config.js"
+    "server": "http-server -p 8000 -c -1"
   },
   "keywords": [
     "geometry",

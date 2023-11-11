@@ -12,6 +12,7 @@ import { GDLevel } from './level';
 import { Camera } from './camera';
 import { PlistAtlasLoader } from './object/plist-loader';
 import { SpriteCropInfo } from './util/sprite';
+import { Profile } from './profiler';
 
 export class Renderer {
     ctx: RenderContext;
@@ -83,23 +84,52 @@ export class Renderer {
         this.handlers[event].push(handler);
     }
 
-    screenToWorldPos(pos: Vec2): Vec2 {
-        const x = ( pos.x - (this.ctx.canvas.width / 2) + this.camera.x  ) / this.camera.zoom;
-        const y = ( (this.ctx.canvas.height / 2) - pos.y + this.camera.y ) / this.camera.zoom;
+    render(level: GDLevel): Profile {
+        level.profiler.start("Rendering");
 
-        return new Vec2(x, y);
-    }
+        const playerX = this.camera.x;// - 75;
+        const currentTime = level.timeAt(playerX);
 
-    render(level: GDLevel) {
-        const [bg, _] = level.colorAt(1000, this.camera.x);
+        this.camera.setScreenSize(this.ctx.canvas.width, this.ctx.canvas.height);
+
+        this.ctx.setSize(this.ctx.canvas.width, this.ctx.canvas.height);
+        this.ctx.setViewMatrix(this.camera.getMatrix());
+
+        level.profiler.start("Color Channel Evaluation", true);
+        const [bg, _] = level.colorAtTime(1000, currentTime);
         this.ctx.clearColor(bg);
 
-        this.ctx.setViewMatrix(this.camera.getMatrix(this.ctx.canvas.width, this.ctx.canvas.height));
-
         for (let c of level.valid_channels) {
-            this.ctx.setColorChannel(c, ...level.colorAt(c, this.camera.x));
+            level.profiler.start("Channel " + c);
+            this.ctx.setColorChannel(c, ...level.colorAtTime(c, currentTime));
+            level.profiler.end();
+        }
+        level.profiler.end();
+        
+        level.profiler.start("Group State Evaluation");
+        for (let i = 1; i < level.groupManager.getTotalGroupCount(); i++)
+            this.ctx.setGroupState(i, level.groupManager.getGroupStateAt(i, currentTime));
+        level.profiler.end();
+
+        if (!level.objectHSVsLoaded) {
+            for (let i = 1; i < level.objectHSVManager.getTotalHSVCount(); i++)
+                this.ctx.setObjectHSV(i, level.objectHSVManager.getObjectHSV(i));
+
+            level.objectHSVsLoaded = true;
         }
 
+        const [groundColor] = level.colorAtTime(1001, currentTime);
+        const [lineColor]   = level.colorAtTime(1002, currentTime);
+
+        const camSize = this.camera.getCameraWorldSize();
+
+        level.profiler.start("Render Call");
         this.ctx.render(level.level_col);
+
+        this.ctx.fillRect(new Vec2(this.camera.x, -64), new Vec2(camSize.x, 128), groundColor);
+        this.ctx.fillRect(new Vec2(this.camera.x, -1), new Vec2(camSize.x, 2), lineColor);
+        level.profiler.end();
+
+        return level.profiler.end();
     }
 }

@@ -21,11 +21,13 @@ export class ObjectSprite {
     size: Vec2 = new Vec2(0, 0);
     scale: Vec2 = new Vec2(1, 1);
     rotation: number = 0;
+    anchor: Vec2 = new Vec2(0, 0);
 
     prevPosition: Vec2 = new Vec2(0, 0);
     prevSize: Vec2 = new Vec2(0, 0);
     prevScale: Vec2 = new Vec2(1, 1);
     prevRotation: number = 0;
+    prevAnchor: Vec2 = new Vec2(0, 0);
 
     children: ObjectSprite[] = [];
     parent: ObjectSprite | null = null;
@@ -55,6 +57,7 @@ export class ObjectSprite {
         sprite.size     = spriteInfo.crop.getSize().spritePixelsToUnits(62);
         sprite.scale    = new Vec2(obj.scale_x ?? 1, obj.scale_y ?? 1);
         sprite.rotation = obj.rot ?? 0;
+        sprite.anchor   = new Vec2(obj.anchor_x ?? 0, obj.anchor_y ?? 0);
         sprite.depth    = obj.z ?? 0;
 
         if (spriteInfo.rotated) {
@@ -121,15 +124,18 @@ export class ObjectSprite {
         let scaleMatrix = new Mat3();
         let rotationMatrix = new Mat3();
         let spriteOffsetMatrix = new Mat3();
+        let anchorMatrix = new Mat3();
 
+        // Idk why put position messes up object 1888:
         positionMatrix.translate(this.position);
+        anchorMatrix.translate(this.anchor.mul(this.size).neg());
         sizeMatrix.scale(this.size);
         scaleMatrix.scale(this.scale);
         rotationMatrix.rotate(this.rotation * Math.PI / 180);
         spriteOffsetMatrix.translate(this.sprite.offset.spritePixelsToUnits(62));
 
         let modelMatrix = positionMatrix.multiply(rotationMatrix).multiply(scaleMatrix);
-        let renderModelMatrix = modelMatrix.multiply(spriteOffsetMatrix.multiply(sizeMatrix));
+        let renderModelMatrix = modelMatrix.multiply(anchorMatrix.multiply(spriteOffsetMatrix.multiply(sizeMatrix)));
 
         if (this.parent != null) {
             const parentMatrix = this.parent.getModelMatrix();
@@ -147,7 +153,8 @@ export class ObjectSprite {
             this.position.equals(this.prevPosition) &&
             this.size.equals(this.prevSize) &&
             this.scale.equals(this.prevScale) &&
-            this.rotation == this.prevRotation
+            this.rotation == this.prevRotation &&
+            this.anchor.equals(this.prevAnchor)
         ) {
             return;
         }
@@ -158,6 +165,7 @@ export class ObjectSprite {
         this.prevSize = this.size;
         this.prevScale = this.scale;
         this.prevRotation = this.rotation;
+        this.prevAnchor = this.anchor;
     }
 
     getModelMatrix(): Mat3 {

@@ -1,22 +1,71 @@
 # GDRWeb
-A Geometry Dash Level Rendering Engine
+A Geometry Dash Level Rendering Engine for the web.
 
-## What's GDRWeb
-It is a work-in-progress rendering engine for rendering Geometry Dash levels on web-based applications. The engine is written in Typescript and currently only supports WebGL 2.0. However, rendering contexts are easily expandable.
+## What is GDRWeb?
+It is a work-in-progress rendering engine for rendering Geometry Dash levels on web-based applications. The engine is written in Typescript and currently only supports WebGL 2.0. However, rendering contexts are easily expandable. GDRWeb has the following features:
 
-## How to build this?
-GDRWeb can easily be built using an already available node script. First you want to install all dependencies.
+- Color Trigger Support
+- Alpha Trigger Support
+- Pulse Trigger Support
+- Move Trigger Support
+- Toggle Trigger Support
+- Object HSV Shifting
+- Copy Colors
+
+The engine is also pretty fast as it uses batch rendering and currently renders everything in one draw call. It is also random access meaning that you can go anywhere in a level and the renderer will automatically recalculate all trigger states for you.
+
+![Acu in GDRWeb](acu.png)
+
+## How to use GDRWeb?
+GDRWeb is easy to include into your Javascript project. You need to install the GDRWeb NPM package into your project. After that, you can require GDRWeb in a Javascript file and use it like this:
+
+```js
+const {Renderer, GDLevel, WebGLContext} = require('gdrweb');
+
+window.onload = () => {
+    // Getting the canvas. You can create the canvas in any
+    // way you want.
+    let canvas = document.getElementById('canvas');
+
+    (async () => {
+        // Loading all the texture plists. These can be found
+        // in the /Resources folder in the Geometry Dash game
+        // directory. Put them in your project folder and
+        // and give the path as an argument in this function:
+        await Renderer.initTextureInfo(
+            "GJ_GameSheet-hd.plist",
+            "GJ_GameSheet02-hd.plist"
+        );
+
+        // Creating the renderer using a WebGL context. You also
+        // have to specify the path to the game sheets. These
+        // can also be found in the /Resources folder
+        let renderer = new Renderer(
+            new WebGLContext(canvas),
+            "GJ_GameSheet-hd.png",
+            "GJ_GameSheet02-hd.png"
+        );
+
+        // Set the camera position
+        renderer.camera.x = 0;
+
+        // Here, you create the level using the raw
+        // level string
+        const levelString = "...";
+        let level = GDLevel.parse(renderer, levelString);
+
+        // When the renderer is loaded, render the level
+        renderer.on('load', () => {
+            renderer.render(level);
+        });
+    })();
+}
 ```
-npm i
-```
-> Prepare for your hard drive to be flooded!
 
-After that you can build it by executing the following node script:
-```
-npm run build
-```
-The built file will be available at `build/main.js`. It will use a commonjs module system so i recommend using [browserify](https://github.com/browserify/browserify) to be able to `require()` that file.
+This won't work like that on your browser. Rather this has to
+be bundled using a web bundler. This should work with any web
+bundler out of the box.
 
-If you don't know what I mean. Well, there is a simple example at [test/test.js](test/test.js). This can also be built using `npm run buildntest` (well it actually builds both the engine and the test). It just simply runs the command `browserify test/test.js > test/bundle.js`.
+Following web bundlers have been tested: [browserify](https://github.com/browserify/browserify) and [webpack](https://webpack.js.org/).
 
-Also, never forget to test in a http server. This can easily be turned on in this repo using `npm run server`. And with that you can go `localhost:8000/test` to run the test (after you built the test of course).
+After bundling, the bundled Javascript file can be included in a HTML file and then you can test it out by opening the HTML file using a http-server. Or, you could disable CORS and just open the HTML file just like that. Though, that is not advisable.

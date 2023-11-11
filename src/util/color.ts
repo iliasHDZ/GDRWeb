@@ -1,3 +1,5 @@
+import { Util } from "./util";
+
 export class Color {
     public r: number;
     public g: number;
@@ -31,17 +33,20 @@ export class Color {
 
     blend(c: Color, a: number) {
         a = Math.max(Math.min(a, 1), 0);
-        let o = 1 - a;
 
         return new Color(
-            o * this.r + a * c.r,
-            o * this.g + a * c.g,
-            o * this.b + a * c.b,
-            o * this.a + a * c.a
+            Util.lerp(this.r, c.r, a),
+            Util.lerp(this.g, c.g, a),
+            Util.lerp(this.b, c.b, a),
+            Util.lerp(this.a, c.a, a)
         );
     }
 
     buffer() {
         return [this.r, this.g, this.b, this.a];
+    }
+
+    toString(): string {
+        return `Color(${this.r.toLocaleString('en-US', {maximumFractionDigits: 3})}, ${this.g.toLocaleString('en-US', {maximumFractionDigits: 3})}, ${this.b.toLocaleString('en-US', {maximumFractionDigits: 3})}, ${this.a.toLocaleString('en-US', {maximumFractionDigits: 3})})`;
     }
 }
