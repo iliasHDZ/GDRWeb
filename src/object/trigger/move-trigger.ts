@@ -69,7 +69,7 @@ export class MoveTrigger extends ValueTrigger {
         }
 
         if (this.lockToPlayerX && this.level) {
-            offset.x = this.level.posAt(startTime + deltaTime) + this.level.posAt(startTime);
+            offset.x = this.level.posAt(startTime + deltaTime) - this.level.posAt(startTime);
         }
 
         return new MoveTriggerValue(startOffset.add(offset));
