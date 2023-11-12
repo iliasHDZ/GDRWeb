@@ -8,6 +8,7 @@ const alpha_trigger_1 = require("./object/trigger/alpha-trigger");
 const pulse_trigger_1 = require("./object/trigger/pulse-trigger");
 const move_trigger_1 = require("./object/trigger/move-trigger");
 const toggle_trigger_1 = require("./object/trigger/toggle-trigger");
+const stop_trigger_1 = require("./object/trigger/stop-trigger");
 const object_batch_1 = require("./render/object-batch");
 const renderer_1 = require("./renderer");
 const color_1 = require("./util/color");
@@ -20,6 +21,7 @@ const groups_1 = require("./groups");
 const hsvshift_1 = require("./util/hsvshift");
 const objecthsv_1 = require("./objecthsv");
 const profiler_1 = require("./profiler");
+const stop_trigger_track_1 = require("./stop-trigger-track");
 class GDLevel {
     constructor(renderer) {
         this.data = [];
@@ -94,6 +96,8 @@ class GDLevel {
             obj = new move_trigger_1.MoveTrigger();
         else if (toggle_trigger_1.ToggleTrigger.isOfType(id))
             obj = new toggle_trigger_1.ToggleTrigger();
+        else if (stop_trigger_1.StopTrigger.isOfType(id))
+            obj = new stop_trigger_1.StopTrigger();
         else
             obj = new object_1.GDObject();
         obj.applyData(data);
@@ -224,6 +228,8 @@ class GDLevel {
     init() {
         this.level_col = new object_batch_1.ObjectBatch(this.renderer.ctx, this.renderer.sheet0, this.renderer.sheet2);
         this.loadSpeedPortals();
+        this.stopTrackList = new stop_trigger_track_1.StopTriggerTrackList(this);
+        this.stopTrackList.loadAllTriggers();
         this.loadColorTracks();
         this.loadPulseTracks();
         this.groupManager.reset();

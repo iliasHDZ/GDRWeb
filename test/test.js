@@ -104,10 +104,12 @@ window.onload = () => {
 
         playing = false;
 
+        let audio = new Audio('songs/Epilogue.mp3');
+
         function play() {
-            let audio = new Audio('songs/Epilogue.mp3');
-            audio.currentTime = level.song_offset;
+            audio.currentTime = level.song_offset + level.timeAt(renderer.camera.x);
             playing = true;
+            audio.volume = 0.5;
             audio.play();
 
             function pupdate() {
@@ -125,6 +127,8 @@ window.onload = () => {
 
         function stop() {
             playing = false;
+            if (audio != null)
+                audio.pause();
         }
 
         document.onkeydown = (e) => {

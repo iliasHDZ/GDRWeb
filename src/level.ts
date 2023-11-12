@@ -5,6 +5,7 @@ import { AlphaTrigger } from "./object/trigger/alpha-trigger";
 import { PulseTargetType, PulseTrigger, PulseTriggerValue } from "./object/trigger/pulse-trigger";
 import { MoveTrigger } from "./object/trigger/move-trigger";
 import { ToggleTrigger } from "./object/trigger/toggle-trigger";
+import { StopTrigger } from "./object/trigger/stop-trigger";
 import { ObjectBatch } from "./render/object-batch";
 import { Renderer } from "./renderer";
 import { Color } from "./util/color";
@@ -13,12 +14,13 @@ import { BaseColor } from "./util/basecolor";
 import { PlayerColor } from "./util/playercolor";
 import { CopyColor } from "./util/copycolor";
 import { ObjectSprite, ObjectSpriteColor } from "./object/info/object-sprite";
-import { ValueTriggerTrack, ValueTriggerTrackList } from "./value-trigger-track";
+import { ValueTriggerTrackList } from "./value-trigger-track";
 import { GroupManager } from "./groups";
 import { HSVShift } from "./util/hsvshift";
 import { ObjectHSVManager } from "./objecthsv";
 import { ValueTrigger } from "./object/trigger/value-trigger";
 import { Profiler } from "./profiler";
+import { StopTriggerTrackList } from "./stop-trigger-track";
 
 export class GDLevel {
     private data: GDObject[] = [];
@@ -27,6 +29,8 @@ export class GDLevel {
 
     private colorTrackList: ValueTriggerTrackList;
     private pulseTrackList: ValueTriggerTrackList;
+
+    public stopTrackList: StopTriggerTrackList;
 
     renderer: Renderer;
     level_col: ObjectBatch;
@@ -138,6 +142,8 @@ export class GDLevel {
             obj = new MoveTrigger();
         else if (ToggleTrigger.isOfType(id))
             obj = new ToggleTrigger();
+        else if (StopTrigger.isOfType(id))
+            obj = new StopTrigger();
         else
             obj = new GDObject();
     
@@ -313,8 +319,12 @@ export class GDLevel {
 
     init() {
         this.level_col = new ObjectBatch(this.renderer.ctx, this.renderer.sheet0, this.renderer.sheet2);
-
+        
         this.loadSpeedPortals();
+
+        this.stopTrackList = new StopTriggerTrackList(this);
+        this.stopTrackList.loadAllTriggers();
+
         this.loadColorTracks();
         this.loadPulseTracks();
 

@@ -8,11 +8,13 @@ import { ObjectSprite } from "./object/info/object-sprite";
 import { GroupManager } from "./groups";
 import { ObjectHSVManager } from "./objecthsv";
 import { Profiler } from "./profiler";
+import { StopTriggerTrackList } from "./stop-trigger-track";
 export declare class GDLevel {
     private data;
     private speedportals;
     private colorTrackList;
     private pulseTrackList;
+    stopTrackList: StopTriggerTrackList;
     renderer: Renderer;
     level_col: ObjectBatch;
     speed: PortalSpeed;

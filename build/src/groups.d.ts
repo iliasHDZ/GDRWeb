@@ -1,6 +1,7 @@
 import { Vec2 } from ".";
 import { GDObject } from "./object/object";
 import { Profiler } from "./profiler";
+import { StopTriggerTrackList } from "./stop-trigger-track";
 import { ValueTriggerTrackList } from "./value-trigger-track";
 export declare class GroupState {
     opacity: number;
@@ -12,6 +13,7 @@ interface GDLevel {
     getObjects(): GDObject[];
     timeAt(x: number): number;
     posAt(x: number): number;
+    stopTrackList: StopTriggerTrackList;
     profiler: Profiler;
 }
 export declare class GroupManager {

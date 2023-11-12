@@ -1,11 +1,13 @@
 import { Vec2 } from ".";
 import { GDObject } from "./object/object";
 import { TriggerValue, ValueTrigger } from "./object/trigger/value-trigger";
+import { StopTriggerTrackList } from "./stop-trigger-track";
 declare class ValueTriggerExecution {
     time: number;
     trigger: ValueTrigger;
     track: ValueTriggerTrack;
-    constructor(trigger: ValueTrigger, time: number, track: ValueTriggerTrack);
+    stoppedAt: number | null;
+    constructor(trigger: ValueTrigger, time: number, track: ValueTriggerTrack, stoppedAt?: number | null);
     valueAt(start: TriggerValue, time: number): TriggerValue;
     getEndTime(): number;
 }
@@ -13,6 +15,7 @@ interface GDLevel {
     getObjects(): GDObject[];
     timeAt(x: number): number;
     posAt(x: number): number;
+    stopTrackList: StopTriggerTrackList;
 }
 export declare class ValueTriggerTrack {
     executions: ValueTriggerExecution[];
@@ -20,6 +23,7 @@ export declare class ValueTriggerTrack {
     level: GDLevel;
     constructor(startValue: TriggerValue, level: GDLevel);
     setStartValue(value: TriggerValue): void;
+    private createTriggerExecution;
     insertTrigger(trigger: ValueTrigger, time: number): void;
     valueAt(time: number): TriggerValue;
     moveValueAt(time: number): Vec2;

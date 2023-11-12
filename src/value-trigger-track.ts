@@ -2,21 +2,29 @@ import { Vec2 } from ".";
 import { GDObject } from "./object/object";
 import { MoveTriggerValue } from "./object/trigger/move-trigger";
 import { TriggerValue, ValueTrigger } from "./object/trigger/value-trigger";
+import { StopTriggerTrackList } from "./stop-trigger-track";
 import { Util } from "./util/util";
 
 class ValueTriggerExecution {
     time: number;
     trigger: ValueTrigger;
     track: ValueTriggerTrack;
+    stoppedAt: number | null;
 
-    constructor(trigger: ValueTrigger, time: number, track: ValueTriggerTrack) {
+    constructor(trigger: ValueTrigger, time: number, track: ValueTriggerTrack, stoppedAt: number | null = null) {
         this.trigger = trigger;
         this.time    = time;
         this.track   = track;
+
+        this.stoppedAt = stoppedAt;
     }
 
     valueAt(start: TriggerValue, time: number): TriggerValue {
-        const deltaTime = Util.clamp(time - this.time, 0, this.trigger.getDuration());
+        let maxExecutionTime = this.trigger.getDuration();
+        if (this.stoppedAt != null)
+            maxExecutionTime = Math.min(maxExecutionTime, this.stoppedAt - this.time);
+
+        const deltaTime = Util.clamp(time - this.time, 0, maxExecutionTime);
         const deltaPos  = this.track.level.posAt(this.time + deltaTime) - this.trigger.x;
 
         if (this.trigger.shouldUseDeltaPos())
@@ -34,6 +42,7 @@ interface GDLevel {
     getObjects(): GDObject[];
     timeAt(x: number): number;
     posAt(x: number): number;
+    stopTrackList: StopTriggerTrackList;
 }
 
 export class ValueTriggerTrack {
@@ -52,8 +61,14 @@ export class ValueTriggerTrack {
         this.startValue = value;
     }
 
+    private createTriggerExecution(trigger: ValueTrigger, time: number): ValueTriggerExecution {
+        const stoppedAt = this.level.stopTrackList.triggerStoppedAt(trigger, time);
+
+        return new ValueTriggerExecution(trigger, time, this, stoppedAt);
+    }
+
     public insertTrigger(trigger: ValueTrigger, time: number) {
-        const exec = new ValueTriggerExecution(trigger, time, this);
+        const exec = this.createTriggerExecution(trigger, time);
 
         for (let i = 0; i < this.executions.length; i++) {
             if (this.executions[i].time > time) {

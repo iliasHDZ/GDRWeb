@@ -5,6 +5,7 @@ import { MoveTrigger, MoveTriggerValue } from "./object/trigger/move-trigger";
 import { ToggleTrigger, ToggleTriggerValue } from "./object/trigger/toggle-trigger";
 import { ValueTrigger } from "./object/trigger/value-trigger";
 import { Profiler } from "./profiler";
+import { StopTriggerTrackList } from "./stop-trigger-track";
 import { Color } from "./util/color";
 import { ValueTriggerTrack, ValueTriggerTrackList } from "./value-trigger-track";
 
@@ -42,6 +43,7 @@ interface GDLevel {
     getObjects(): GDObject[];
     timeAt(x: number): number;
     posAt(x: number): number;
+    stopTrackList: StopTriggerTrackList;
     profiler: Profiler;
 }
 
