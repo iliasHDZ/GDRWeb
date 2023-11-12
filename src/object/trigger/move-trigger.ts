@@ -1,5 +1,4 @@
 import { EasingStyle, easingFunction } from "../../util/easing";
-import { Util } from "../../util/util";
 import { Vec2 } from "../../util/vec2";
 import { GDObject } from "../object";
 import { TriggerValue, ValueTrigger } from "./value-trigger";
@@ -10,6 +9,17 @@ export class MoveTriggerValue extends TriggerValue {
     constructor(offset: Vec2) {
         super();
         this.offset = offset;
+    }
+
+    static default(): MoveTriggerValue {
+        return new MoveTriggerValue(new Vec2(0, 0));
+    }
+
+    combineWith(value: TriggerValue): TriggerValue | null {
+        if (!(value instanceof MoveTriggerValue))
+            return null;
+
+        return new MoveTriggerValue(this.offset.add(value.offset));
     }
 }
 
@@ -42,21 +52,7 @@ export class MoveTrigger extends ValueTrigger {
         this.duration = GDObject.parse(data[10], 'number', 0);
     }
 
-    public shouldUseDeltaPos(): boolean {
-        return this.lockToPlayerX;
-    }
-
-    public valueAfterDeltaPos(startValue: TriggerValue, deltaPos: number): TriggerValue {
-        let startOffset = new Vec2(0, 0);
-        if (startValue instanceof MoveTriggerValue)
-            startOffset = startValue.offset;
-
-        let offset = new Vec2(deltaPos, 0);
-
-        return new MoveTriggerValue(startOffset.add(offset));
-    }
-
-    public valueAfterDelta(startValue: TriggerValue, deltaTime: number): TriggerValue {
+    public valueAfterDelta(startValue: TriggerValue, deltaTime: number, startTime: number): TriggerValue {
         let startOffset = new Vec2(0, 0);
         if (startValue instanceof MoveTriggerValue)
             startOffset = startValue.offset;
@@ -70,6 +66,10 @@ export class MoveTrigger extends ValueTrigger {
             // TODO: Implement easing rate
             const easingOffset = easingFunction(time, this.easing);
             offset = new Vec2(easingOffset * this.moveX, easingOffset * this.moveY);
+        }
+
+        if (this.lockToPlayerX && this.level) {
+            offset.x = this.level.posAt(startTime + deltaTime) + this.level.posAt(startTime);
         }
 
         return new MoveTriggerValue(startOffset.add(offset));

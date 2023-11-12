@@ -171,7 +171,7 @@ export class PulseTrigger extends ValueTrigger {
             return PulseTriggerValue.fromHSVShift(this.pulseHsv);
     }
 
-    public valueAfterDelta(startValue: TriggerValue, deltaTime: number): TriggerValue {
+    public valueAfterDelta(startValue: TriggerValue, deltaTime: number, _: number): TriggerValue {
         if (!(startValue instanceof PulseTriggerValue))
             return PulseTriggerValue.empty();
 

@@ -89,7 +89,7 @@ export class ColorTrigger extends ValueTrigger {
         return new BaseColor(this.r, this.g, this.b, this.opacity, this.blending);
     }
 
-    public valueAfterDelta(startValue: TriggerValue, deltaTime: number): TriggerValue {
+    public valueAfterDelta(startValue: TriggerValue, deltaTime: number, _: number): TriggerValue {
         let startCol: GDColor = new BaseColor(255, 255, 255, 1, false);
         if (startValue instanceof ColorTriggerValue)
             startCol = startValue.color;

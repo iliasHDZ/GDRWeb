@@ -9,6 +9,10 @@ export class AlphaTriggerValue extends TriggerValue {
         super();
         this.alpha = alpha;
     }
+
+    static default(): AlphaTriggerValue {
+        return new AlphaTriggerValue(1);
+    }
 }
 
 export class AlphaTrigger extends ValueTrigger {
@@ -25,7 +29,7 @@ export class AlphaTrigger extends ValueTrigger {
         this.targetGroupId = GDObject.parse(data[51], 'number', 0);
     }
 
-    public valueAfterDelta(startValue: TriggerValue, deltaTime: number): TriggerValue {
+    public valueAfterDelta(startValue: TriggerValue, deltaTime: number, _: number): TriggerValue {
         let startAlpha = 1;
         if (startValue instanceof AlphaTriggerValue)
             startAlpha = startValue.alpha;

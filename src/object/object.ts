@@ -5,6 +5,11 @@ import { Mat3 } from "../util/mat3";
 import { Vec2 } from "..";
 import { HSVShift } from "../util/hsvshift";
 
+interface GDLevel {
+    timeAt(x: number): number;
+    posAt(x: number): number;
+}
+
 export class GDObject {
     public id: number;
 
@@ -31,6 +36,12 @@ export class GDObject {
 
     public baseHSVShiftId: number = 0;
     public detailHSVShiftId: number = 0;
+
+    public level: GDLevel | null = null;
+
+    constructor(level: GDLevel) {
+        this.level = level;
+    }
 
     static parse(data: string, type: string, def: any): any {
         if (!data) return def;

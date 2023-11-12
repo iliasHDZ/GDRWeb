@@ -5,9 +5,9 @@ import { MoveTrigger, MoveTriggerValue } from "./object/trigger/move-trigger";
 import { ToggleTrigger, ToggleTriggerValue } from "./object/trigger/toggle-trigger";
 import { ValueTrigger } from "./object/trigger/value-trigger";
 import { Profiler } from "./profiler";
-import { StopTriggerTrackList } from "./stop-trigger-track";
+import { StopTriggerTrackList } from "./track/stop-trigger-track";
 import { Color } from "./util/color";
-import { ValueTriggerTrack, ValueTriggerTrackList } from "./value-trigger-track";
+import { ValueTriggerTrack, ValueTriggerTrackList } from "./track/value-trigger-track";
 
 function isSameSet(set1: number[], set2: number[]): boolean {
     if (set1.length != set2.length)
@@ -118,48 +118,6 @@ export class GroupManager {
         return this.lastDoubleGroupId;
     }
 
-    loadAlphaTracks() {
-        this.alphaTrackList = new ValueTriggerTrackList(this.level, new AlphaTriggerValue(1));
-
-        this.alphaTrackList.loadAllTriggers((trigger: ValueTrigger) => {
-            if (!(trigger instanceof AlphaTrigger))
-                return null;
-
-            if (trigger.targetGroupId == 0)
-                return null;
-
-            return trigger.targetGroupId;
-        });
-    }
-
-    loadMoveTracks() {
-        this.moveTrackList = new ValueTriggerTrackList(this.level, new MoveTriggerValue(new Vec2(0, 0)));
-
-        this.moveTrackList.loadAllTriggers((trigger: ValueTrigger) => {
-            if (!(trigger instanceof MoveTrigger))
-                return null;
-
-            if (trigger.targetGroupId == 0)
-                return null;
-
-            return trigger.targetGroupId;
-        });
-    }
-
-    loadToggleTracks() {
-        this.toggleTrackList = new ValueTriggerTrackList(this.level, new ToggleTriggerValue(true));
-
-        this.toggleTrackList.loadAllTriggers((trigger: ValueTrigger) => {
-            if (!(trigger instanceof ToggleTrigger))
-                return null;
-
-            if (trigger.targetGroupId == 0)
-                return null;
-
-            return trigger.targetGroupId;
-        });
-    }
-
     getAlphaValueAtTime(groupId: number, time: number): number {
         this.level.profiler.start("Alpha Trigger Evaluation");
         const value = this.alphaTrackList.valueAt(groupId, time);
@@ -173,7 +131,7 @@ export class GroupManager {
 
     getMoveOffsetAtTime(groupId: number, time: number): Vec2 {
         this.level.profiler.start("Move Trigger Evaluation");
-        const value = this.moveTrackList.moveValueAt(groupId, time);
+        const value = (this.moveTrackList.combinedValueAt(groupId, time) as MoveTriggerValue).offset;
         this.level.profiler.end();
         return value;
     }
@@ -220,6 +178,17 @@ export class GroupManager {
 
         this.startDoubleGroupIds = this.largestGroupId + 1;
         this.lastDoubleGroupId = this.startDoubleGroupIds;
+    }
+
+    loadTriggers() {
+        this.alphaTrackList = new ValueTriggerTrackList(this.level, AlphaTriggerValue.default());
+        this.alphaTrackList.loadAllAlphaTriggers();
+        
+        this.moveTrackList = new ValueTriggerTrackList(this.level, MoveTriggerValue.default());
+        this.moveTrackList.loadAllMoveTriggers();
+
+        this.toggleTrackList = new ValueTriggerTrackList(this.level, ToggleTriggerValue.default());
+        this.toggleTrackList.loadAllToggleTriggers();
     }
 
     createDoubleGroup(group1: number, group2: number): number {

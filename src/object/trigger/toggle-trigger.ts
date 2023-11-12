@@ -8,6 +8,10 @@ export class ToggleTriggerValue extends TriggerValue {
         super();
         this.active = active;
     }
+
+    static default(): ToggleTriggerValue {
+        return new ToggleTriggerValue(true);
+    }
 }
 
 export class ToggleTrigger extends ValueTrigger {
@@ -21,7 +25,7 @@ export class ToggleTrigger extends ValueTrigger {
         this.targetGroupId = GDObject.parse(data[51], 'number', 0);
     }
 
-    public valueAfterDelta(_1: TriggerValue, _2: number): TriggerValue {
+    public valueAfterDelta(_1: TriggerValue, _2: number, _3: number): TriggerValue {
         return new ToggleTriggerValue(this.activeGroup);
     }
 

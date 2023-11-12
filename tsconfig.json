@@ -7,5 +7,5 @@
         "esModuleInterop": true,
         "declaration": true
     },
-    "include": ["src/*"]
+    "include": ["src/*", "src/track/value-trigger-track.ts", "src/track/stop-trigger-track.ts"]
 }

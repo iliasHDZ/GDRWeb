@@ -14,13 +14,13 @@ import { BaseColor } from "./util/basecolor";
 import { PlayerColor } from "./util/playercolor";
 import { CopyColor } from "./util/copycolor";
 import { ObjectSprite, ObjectSpriteColor } from "./object/info/object-sprite";
-import { ValueTriggerTrackList } from "./value-trigger-track";
+import { ValueTriggerTrackList } from "./track/value-trigger-track";
 import { GroupManager } from "./groups";
 import { HSVShift } from "./util/hsvshift";
 import { ObjectHSVManager } from "./objecthsv";
 import { ValueTrigger } from "./object/trigger/value-trigger";
 import { Profiler } from "./profiler";
-import { StopTriggerTrackList } from "./stop-trigger-track";
+import { StopTriggerTrackList } from "./track/stop-trigger-track";
 
 export class GDLevel {
     private data: GDObject[] = [];
@@ -125,27 +125,27 @@ export class GDLevel {
         }
     }
 
-    static getObject(data: {}): GDObject {
+    static parseObject(level: GDLevel, data: {}): GDObject {
         let id = data[1] || 1;
 
         let obj: GDObject;
     
         if (SpeedPortal.isOfType(id))
-            obj = new SpeedPortal();
+            obj = new SpeedPortal(level);
         else if (ColorTrigger.isOfType(id))
-            obj = new ColorTrigger();
+            obj = new ColorTrigger(level);
         else if (AlphaTrigger.isOfType(id))
-            obj = new AlphaTrigger();
+            obj = new AlphaTrigger(level);
         else if (PulseTrigger.isOfType(id))
-            obj = new PulseTrigger();
+            obj = new PulseTrigger(level);
         else if (MoveTrigger.isOfType(id))
-            obj = new MoveTrigger();
+            obj = new MoveTrigger(level);
         else if (ToggleTrigger.isOfType(id))
-            obj = new ToggleTrigger();
+            obj = new ToggleTrigger(level);
         else if (StopTrigger.isOfType(id))
-            obj = new StopTrigger();
+            obj = new StopTrigger(level);
         else
-            obj = new GDObject();
+            obj = new GDObject(level);
     
         obj.applyData(data);
         return obj;
@@ -164,7 +164,7 @@ export class GDLevel {
             for (let p = 0; p < psplit.length; p += 2)
                 props[+psplit[p]] = psplit[p + 1];
             
-            level.data.push(this.getObject(props));
+            level.data.push(this.parseObject(level, props));
         }
 
         level.init();
@@ -295,18 +295,13 @@ export class GDLevel {
         for (let [ch, color] of Object.entries(this.startColors))
             this.colorTrackList.createTrackWithStartValue(+ch, new ColorTriggerValue(color));
 
-        this.colorTrackList.loadAllTriggers((trigger: ValueTrigger) => {
-            if (!(trigger instanceof ColorTrigger))
-                return null;
-
-            return trigger.color;
-        });
+        this.colorTrackList.loadAllColorTriggers();
     }
 
     loadPulseTracks() {
         this.pulseTrackList = new ValueTriggerTrackList(this, PulseTriggerValue.empty());
 
-        this.pulseTrackList.loadAllTriggers((trigger: ValueTrigger) => {
+        this.pulseTrackList.loadAllNonSpawnTriggers((trigger: ValueTrigger) => {
             if (!(trigger instanceof PulseTrigger))
                 return null;
 
@@ -319,7 +314,7 @@ export class GDLevel {
 
     init() {
         this.level_col = new ObjectBatch(this.renderer.ctx, this.renderer.sheet0, this.renderer.sheet2);
-        
+
         this.loadSpeedPortals();
 
         this.stopTrackList = new StopTriggerTrackList(this);
@@ -331,9 +326,7 @@ export class GDLevel {
         this.groupManager.reset();
         this.groupManager.loadGroups();
         this.groupManager.compressLargeGroupCombinations(4);
-        this.groupManager.loadAlphaTracks();
-        this.groupManager.loadMoveTracks();
-        this.groupManager.loadToggleTracks();
+        this.groupManager.loadTriggers();
 
         this.objectHSVManager.reset();
         this.objectHSVManager.loadObjectHSVs();

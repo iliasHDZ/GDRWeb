@@ -1,12 +1,14 @@
-import { GDObject } from "./object/object";
-import { StopTrigger } from "./object/trigger/stop-trigger";
-import { Trigger } from "./object/trigger/trigger";
+import { GDObject } from "../object/object";
+import { StopTrigger } from "../object/trigger/stop-trigger";
+import { Trigger } from "../object/trigger/trigger";
+import { TriggerExecution, TriggerTrack, TriggerTrackList } from "./trigger-track";
 
-class StopTriggerExecution {
+class StopTriggerExecution extends TriggerExecution {
     time: number;
     trigger: StopTrigger;
 
     constructor(trigger: StopTrigger, time: number) {
+        super(trigger, time);
         this.trigger = trigger;
         this.time    = time;
     }
@@ -18,28 +20,23 @@ interface GDLevel {
     posAt(x: number): number;
 }
 
-// DUPLICATE CODE WITH VALUETRIGGERTRACK, PLEASE FIX
-export class StopTriggerTrack {
+export class StopTriggerTrack extends TriggerTrack {
     public executions: StopTriggerExecution[];
 
-    level: GDLevel;
-
     constructor(level: GDLevel) {
+        super(level);
         this.executions = [];
-        this.level = level;
     }
 
-    public insertTrigger(trigger: StopTrigger, time: number) {
-        const exec = new StopTriggerExecution(trigger, time);
+    protected getExecutions(): TriggerExecution[] {
+        return this.executions;
+    }
 
-        for (let i = 0; i < this.executions.length; i++) {
-            if (this.executions[i].time > time) {
-                this.executions.splice(i, 0, exec);
-                return;
-            }
-        }
+    protected createExecution(trigger: Trigger, time: number): TriggerExecution | null {
+        if (!(trigger instanceof StopTrigger))
+            return null;
 
-        this.executions.push(exec);
+        return new StopTriggerExecution(trigger, time);
     }
 
     public nextExecutionAfter(time: number): StopTriggerExecution | null {
@@ -52,35 +49,31 @@ export class StopTriggerTrack {
     }
 }
 
-// DUPLICATE CODE WITH STOPTRIGGERTRACKLIST, PLEASE FIX
-export class StopTriggerTrackList {
+export class StopTriggerTrackList extends TriggerTrackList {
     public tracks: { [id: number]: StopTriggerTrack } = {};
-    
-    level: GDLevel;
 
     constructor(level: GDLevel) {
-        this.level = level;
+        super(level);
     }
 
-    public insertTrigger(id: number, trigger: StopTrigger, time: number) {
-        if (!this.tracks[id])
-            this.tracks[id] = new StopTriggerTrack(this.level);
+    protected getTracks(): { [id: number]: TriggerTrack; } {
+        return this.tracks;
+    }
 
-        this.tracks[id].insertTrigger(trigger, time);
+    protected createTrack(): TriggerTrack {
+        return new StopTriggerTrack(this.level);
     }
 
     public loadAllTriggers() {
-        for (let obj of this.level.getObjects()) {
-            if (!(obj && obj instanceof StopTrigger))
-                continue;
+        this.loadAllNonSpawnTriggers((trigger: StopTrigger) => {
+            if (!(trigger instanceof StopTrigger))
+                return null;
 
-            if (obj.spawnTriggered || obj.touchTriggered)
-                continue;
+            if (trigger.targetGroupId == 0)
+                return null;
 
-            const id = obj.targetGroupId;
-
-            this.insertTrigger(id, obj, this.level.timeAt(obj.x));
-        }
+            return trigger.targetGroupId;
+        });
     }
 
     public nextExecutionAfter(id: number, time: number): StopTriggerExecution | null {
