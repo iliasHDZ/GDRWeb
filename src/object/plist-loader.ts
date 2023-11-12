@@ -44,8 +44,10 @@ export class PlistAtlasLoader {
     }
 
     private parseDimensions(obj: number[], rotated: boolean, idx1: number, idx2: number): [number, number] {
-        if (obj.length <= Math.max(idx1, idx2))
+        if (obj.length <= Math.max(idx1, idx2)) {
+            console.log(obj);
             throw new Error("invalid dimensions");
+        }
 
         let width: number, height: number;
         if (rotated) {
@@ -59,7 +61,11 @@ export class PlistAtlasLoader {
         return [width, height]
     }
 
-    private parseTexture(name: string, obj: any): SpriteCropInfo {
+    private parseTexture(name: string, obj: any): SpriteCropInfo | null {
+        // absolute's texturepacker (i think) has a bug that adds '.' and '..' as textures
+        if (name == '.' || name == '..')
+            return null;
+
         if (typeof(obj) != 'object')
             return null;
 
@@ -107,7 +113,10 @@ export class PlistAtlasLoader {
         let ret: {[key: string]: SpriteCropInfo} = {};
 
         for (let [k, v] of Object.entries(this.data.frames)) {
-            const sprite: SpriteCropInfo = this.parseTexture(k, v);
+            const sprite: SpriteCropInfo | null = this.parseTexture(k, v);
+            if (sprite == null)
+                continue;
+
             sprite.sheet = sheetnum;
 
             if (sprite != null)

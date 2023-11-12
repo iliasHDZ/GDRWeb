@@ -4,10 +4,12 @@ import { ObjectSpriteColor } from "./info/object-sprite";
 import { Mat3 } from "../util/mat3";
 import { Vec2 } from "..";
 import { HSVShift } from "../util/hsvshift";
+import { GameState } from "../game-state";
 
 interface GDLevel {
     timeAt(x: number): number;
     posAt(x: number): number;
+    gameStateAtPos(pos: number): GameState;
 }
 
 export class GDObject {

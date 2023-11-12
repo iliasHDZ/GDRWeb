@@ -42,8 +42,8 @@ export class MoveTrigger extends ValueTrigger {
         this.moveX = GDObject.parse(data[28], 'number', 0);
         this.moveY = GDObject.parse(data[29], 'number', 0);
 
-        this.lockToPlayerX = GDObject.parse(data[58], 'boolean', 0);
-        this.lockToPlayerY = GDObject.parse(data[59], 'boolean', 0);
+        this.lockToPlayerX = GDObject.parse(data[58], 'boolean', false);
+        this.lockToPlayerY = GDObject.parse(data[59], 'boolean', false);
 
         this.easing = GDObject.parse(data[30], 'number', EasingStyle.NONE);
 
@@ -68,9 +68,18 @@ export class MoveTrigger extends ValueTrigger {
             offset = new Vec2(easingOffset * this.moveX, easingOffset * this.moveY);
         }
 
-        if (this.lockToPlayerX && this.level) {
-            offset.x = this.level.posAt(startTime + deltaTime) - this.level.posAt(startTime);
+        let startPos: number;
+        let afterPos: number;
+        if (this.lockToPlayerX || this.lockToPlayerY) {
+            startPos = this.level.posAt(startTime);
+            afterPos = this.level.posAt(startTime + deltaTime);
         }
+
+        if (this.lockToPlayerX && this.level)
+            offset.x = afterPos - startPos;
+
+        if (this.lockToPlayerY && this.level)
+            offset.y = this.level.gameStateAtPos(afterPos).approxYPos - this.level.gameStateAtPos(startPos).approxYPos;
 
         return new MoveTriggerValue(startOffset.add(offset));
     }

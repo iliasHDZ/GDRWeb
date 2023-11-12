@@ -21,6 +21,7 @@ import { ObjectHSVManager } from "./objecthsv";
 import { ValueTrigger } from "./object/trigger/value-trigger";
 import { Profiler } from "./profiler";
 import { StopTriggerTrackList } from "./track/stop-trigger-track";
+import { GameState } from "./game-state";
 
 export class GDLevel {
     private data: GDObject[] = [];
@@ -40,12 +41,14 @@ export class GDLevel {
 
     valid_channels: number[];
 
-    startColors: { [ch: number]: GDColor };
+    startColors: { [ch: number]: GDColor } = {};
 
     groupManager: GroupManager;
     objectHSVManager: ObjectHSVManager;
 
     objectHSVsLoaded: boolean = false;
+
+    gamemodePortals: GDObject[];
 
     profiler: Profiler;
 
@@ -118,8 +121,6 @@ export class GDLevel {
         level.song_offset = GDObject.parse(props['kA13'], 'number', 0);
 
         if (props['kS38']) {
-            level.startColors = {};
-
             for (let c of props['kS38'].split('|'))
                 this.parseStartColor(level, c);
         }
@@ -266,6 +267,19 @@ export class GDLevel {
         return this.colorAtTime(ch, this.timeAt(x));
     }
 
+    gameStateAtPos(pos: number): GameState {
+        let approxYPos = 0;
+
+        for (let portal of this.gamemodePortals) {
+            if (portal.x <= pos)
+                approxYPos = portal.y;
+        }
+
+        let state = new GameState();
+        state.approxYPos = approxYPos;
+        return state;
+    }
+
     addTexture(object: GDObject, sprite: ObjectSprite, groups: number[], hsvId: number) {
         const objectMatrix = object.getModelMatrix();
         const spriteMatrix = sprite.getRenderModelMatrix();
@@ -330,6 +344,13 @@ export class GDLevel {
 
         this.objectHSVManager.reset();
         this.objectHSVManager.loadObjectHSVs();
+
+        this.gamemodePortals = [];
+        for (let obj of this.data) {
+            if ([12, 13, 47, 111, 660, 745, 1331].includes(obj.id))
+                this.gamemodePortals.push(obj);
+        }
+        this.gamemodePortals.sort((a, b) => a.x - b.x);
 
         let data: [GDObject, number][] = [];
 
