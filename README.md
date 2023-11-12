@@ -9,6 +9,7 @@ It is a work-in-progress rendering engine for rendering Geometry Dash levels on 
 - Pulse Trigger Support
 - Move Trigger Support
 - Toggle Trigger Support
+- Stop Trigger Support
 - Object HSV Shifting
 - Copy Colors
 
