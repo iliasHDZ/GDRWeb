@@ -75,7 +75,7 @@ export class GDLevel {
         let g = GDObject.parse(props[2], 'number', 255);
         let b = GDObject.parse(props[3], 'number', 255);
 
-        let plr = GDObject.parse(props[4], 'number', 0);
+        let plr = GDObject.parse(props[4], 'number', -1);
         let blending = GDObject.parse(props[5], 'boolean', false);
 
         let id = GDObject.parse(props[6], 'number', 1);

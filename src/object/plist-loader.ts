@@ -44,10 +44,8 @@ export class PlistAtlasLoader {
     }
 
     private parseDimensions(obj: number[], rotated: boolean, idx1: number, idx2: number): [number, number] {
-        if (obj.length <= Math.max(idx1, idx2)) {
-            console.log(obj);
+        if (obj.length <= Math.max(idx1, idx2))
             throw new Error("invalid dimensions");
-        }
 
         let width: number, height: number;
         if (rotated) {
