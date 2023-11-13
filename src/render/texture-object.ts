@@ -8,13 +8,15 @@ export class TextureObject {
     public secondTexture: boolean;
     public groups: number[];
     public hsvId: number;
+    public black: boolean;
 
-    constructor(model: Mat3, color: number, sprite: SpriteCropInfo, groups: number[], hsvId: number, secondTexture = false) {
+    constructor(model: Mat3, color: number, sprite: SpriteCropInfo, groups: number[], hsvId: number, black: boolean, secondTexture = false) {
         this.model    = model;
         this.color    = color;
         this.sprite   = sprite;
         this.groups   = groups;
         this.hsvId    = hsvId;
+        this.black    = black;
         // Is this value even used?
         this.secondTexture = secondTexture;
     }

@@ -289,7 +289,8 @@ export class GDLevel {
             object.getColorChannel(sprite.colorType),
             sprite.sprite,
             groups,
-            hsvId
+            hsvId,
+            sprite.colorType == ObjectSpriteColor.BLACK
         );
     }
 

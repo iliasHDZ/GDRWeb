@@ -109,9 +109,9 @@ export class GDObject {
 
     getColorChannel(spriteColor: ObjectSpriteColor): number {
         switch (spriteColor) {
+        case ObjectSpriteColor.BLACK:
         case ObjectSpriteColor.BASE:   return this.baseCol;
         case ObjectSpriteColor.DETAIL: return this.detailCol;
-        case ObjectSpriteColor.BLACK:  return 1010;
         default:
             return 0;
         }

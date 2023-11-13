@@ -210,6 +210,10 @@ bool isChannelBlending(int channel) {
     return texture(uColorInfoTexture, vec2(1.5 / 2.0, y)).r > 0.5;
 }
 
+int imod(int a, int n){
+    return a - (n * (a/n));
+}
+
 void main() {
     oTex = aTex;
     oSCp = aSCp;
@@ -231,6 +235,9 @@ void main() {
     position += state.offset;
 
     oFlags = int(aFlags);
+
+    if (imod(oFlags / 2, 2) > 0)
+        oColor = vec4(0, 0, 0, 1);
 
     gl_Position = vec4(uView * vec3(position, 1), 1);
 }
@@ -255,9 +262,13 @@ flat in int oFlags;
 uniform sampler2D uTexture;
 uniform sampler2D uSecondTexture;
 
+int imod(int a, int n){
+    return a - (n * (a/n));
+}
+
 vec4 getTexFrag(vec2 pos) {
     vec2 texCoords = pos / vec2(textureSize(uTexture, 0));
-    if (oFlags == 1)
+    if (imod(oFlags, 2) > 0)
         return texture(uSecondTexture, texCoords);
     else
         return texture(uTexture, texCoords);
@@ -331,7 +342,7 @@ void main() {
     outColor.a *= oAlpha;
     outColor = vec4(outColor.rgb * outColor.a, outColor.a);
     if (oBlending == 1)
-        outColor.a = 0.0;
+        outColor = vec4(outColor.rgb * outColor.a, 0.0);
 }
 `;
 
@@ -681,7 +692,7 @@ export class WebGLContext extends RenderContext {
         return t;
     }
 
-    genQuadStructs(m: Mat3, c: number, sprite: SpriteCropInfo, groups: number[] = [0, 0, 0, 0], hsvId: number): any {
+    genQuadStructs(m: Mat3, c: number, sprite: SpriteCropInfo, groups: number[] = [0, 0, 0, 0], hsvId: number, black: boolean): any {
         groups = groups.slice();
 
         while (groups.length < 4)
@@ -732,11 +743,16 @@ export class WebGLContext extends RenderContext {
 
         const aSCp = [t_l, t_t, t_r, t_b];
 
+        let aFlags = 0;
+
+        aFlags |= sprite.sheet == 2 ? 1 : 0;
+        aFlags |= black ? 2 : 0;
+
         for (let i = 0; i < q.length; i++) {
             r.push({
                 aPos: m.transform(q[i]).buffer(),
                 aCol: c,
-                aFlags: sprite.sheet == 2 ? 1 : 0,
+                aFlags,
                 aTex: t[i].buffer(),
                 aGroups: groups,
                 aHsv: hsvId,
@@ -816,7 +832,7 @@ export class WebGLContext extends RenderContext {
         const builder = new BufferArrayBuilder(attributes);
 
         for (let o of c.objects) {
-            const quad = this.genQuadStructs(o.model, o.color, o.sprite, o.groups, o.hsvId);
+            const quad = this.genQuadStructs(o.model, o.color, o.sprite, o.groups, o.hsvId, o.black);
             for (let a of quad)
                 builder.add(a);
         }
