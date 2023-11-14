@@ -22,6 +22,10 @@ GDRWeb is easy to include into your Javascript project. You need to install the 
 
 ```js
 const {Renderer, GDLevel, WebGLContext} = require('gdrweb');
+/*
+// If you're using ES modules, the following line should work as well:
+import {Renderer, GDLevel, WebGLContext} from 'gdrweb';
+*/
 
 window.onload = () => {
     // Getting the canvas. You can create the canvas in any
@@ -67,6 +71,21 @@ This won't work like that on your browser. Rather this has to
 be bundled using a web bundler. This should work with any web
 bundler out of the box.
 
-Following web bundlers have been tested: [browserify](https://github.com/browserify/browserify) and [webpack](https://webpack.js.org/).
+Following web bundlers have been tested: [vite](https://vitejs.dev/), [webpack](https://webpack.js.org/) and [browserify](https://github.com/browserify/browserify).
 
-After bundling, the bundled Javascript file can be included in a HTML file and then you can test it out by opening the HTML file using a http-server. Or, you could disable CORS and just open the HTML file just like that. Though, that is not advisable.
+How you run your app depends on your web bundler.
+
+## Want to contribute?
+Here's how you can run the test application.
+
+First, install all dependencies:
+```bash
+npm install
+```
+Then run the developement server:
+```bash
+npm run dev
+```
+Then open the localhost link given by the command.
+You can now add changes to the engine and the page
+should then automatically refresh.

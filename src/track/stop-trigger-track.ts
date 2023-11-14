@@ -4,13 +4,8 @@ import { Trigger } from "../object/trigger/trigger";
 import { TriggerExecution, TriggerTrack, TriggerTrackList } from "./trigger-track";
 
 class StopTriggerExecution extends TriggerExecution {
-    time: number;
-    trigger: StopTrigger;
-
     constructor(trigger: StopTrigger, time: number) {
         super(trigger, time);
-        this.trigger = trigger;
-        this.time    = time;
     }
 }
 

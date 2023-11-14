@@ -7,35 +7,35 @@ import { StopTriggerTrackList } from "./stop-trigger-track";
 import { Util } from "../util/util";
 import { TriggerExecution, TriggerTrack, TriggerTrackList } from "./trigger-track";
 import { ColorTrigger } from "../object/trigger/color-trigger";
-import { PulseTrigger } from "../object/trigger/pulse-trigger";
 import { AlphaTrigger } from "../object/trigger/alpha-trigger";
 import { ToggleTrigger } from "../object/trigger/toggle-trigger";
 
 class ValueTriggerExecution extends TriggerExecution {
-    time: number;
-    trigger: ValueTrigger;
     track: ValueTriggerTrack;
     stoppedAt: number | null;
+    valueTrigger: ValueTrigger;
 
     constructor(trigger: ValueTrigger, time: number, track: ValueTriggerTrack, stoppedAt: number | null = null) {
         super(trigger, time);
+
+        this.valueTrigger = trigger;
 
         this.track     = track;
         this.stoppedAt = stoppedAt;
     }
 
     valueAt(start: TriggerValue, time: number): TriggerValue {
-        let maxExecutionTime = this.trigger.getDuration();
+        let maxExecutionTime = this.valueTrigger.getDuration();
         if (this.stoppedAt != null)
             maxExecutionTime = Math.min(maxExecutionTime, this.stoppedAt - this.time);
 
         const deltaTime = Util.clamp(time - this.time, 0, maxExecutionTime);
         
-        return this.trigger.valueAfterDelta(start, deltaTime, this.time);
+        return this.valueTrigger.valueAfterDelta(start, deltaTime, this.time);
     }
 
     getEndTime(): number {
-        return this.time + this.trigger.getDuration();
+        return this.time + this.valueTrigger.getDuration();
     }
 }
 
@@ -129,12 +129,12 @@ export class ValueTriggerTrackList extends TriggerTrackList {
     public tracks: { [id: number]: ValueTriggerTrack } = {};
     
     defaultStartValue: TriggerValue;
-    level: GDLevel;
+    eLevel: GDLevel;
 
     constructor(level: GDLevel, defaultStartValue: TriggerValue) {
         super(level);
         this.defaultStartValue = defaultStartValue;
-        this.level = level;
+        this.eLevel = level;
     }
 
     protected getTracks(): { [id: number]: TriggerTrack } {
@@ -142,11 +142,11 @@ export class ValueTriggerTrackList extends TriggerTrackList {
     }
 
     protected createTrack(): TriggerTrack {
-        return new ValueTriggerTrack(this.defaultStartValue, this.level);
+        return new ValueTriggerTrack(this.defaultStartValue, this.eLevel);
     }
 
     public createTrackWithStartValue(id: number, startValue: TriggerValue) {
-        this.tracks[id] = new ValueTriggerTrack(startValue, this.level);
+        this.tracks[id] = new ValueTriggerTrack(startValue, this.eLevel);
     }
 
     public loadAllColorTriggers() {

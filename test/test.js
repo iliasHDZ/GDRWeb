@@ -1,6 +1,6 @@
-let {Renderer, GDLevel, WebGLContext, Vec2} = require('..');
+import acu from './levels/acu';
 
-const acu = require('./levels/acu');
+import {Renderer, GDLevel, WebGLContext, Vec2} from '../src/index';
 
 window.onload = () => {
     let canvas = document.getElementById('canvas');
@@ -102,7 +102,7 @@ window.onload = () => {
             drag = false;
         }
 
-        playing = false;
+        let playing = false;
 
         let audio = new Audio('songs/Epilogue.mp3');
 
