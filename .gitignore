@@ -4,4 +4,6 @@ build/
 
 test/bundle.js
 
+testing/
+
 package-lock.json
