@@ -404,7 +404,6 @@ const QUAD_VERTICES = new Float32Array([
 
 export class WebGLContext extends RenderContext {
     gl: WebGL2RenderingContext;
-    canvas: HTMLCanvasElement;
 
     program: ShaderProgram;
 

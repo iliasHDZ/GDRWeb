@@ -7,7 +7,7 @@ export class Camera {
 
     zoom: number;
 
-    screenSize: Vec2;
+    screenSize: Vec2 = new Vec2(0, 0);
 
     constructor(x: number, y: number, zoom: number) {
         this.x = x;
