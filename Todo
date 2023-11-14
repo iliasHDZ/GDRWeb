@@ -2,6 +2,7 @@
 [ ] Background rendering
 [ ] Ground rendering
 [ ] Object sprite opacity implementation
-[ ] .lvl file loading
-[ ] .gmd file loading
+[ ] Trigger hiding
+[x] .lvl file loading
+[x] .gmd file loading
 [ ] .gmd2 file loading

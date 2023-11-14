@@ -21,8 +21,12 @@
   "author": "IliasHDZ",
   "license": "MIT",
   "devDependencies": {
+    "@types/pako": "^2.0.3",
     "typescript": "^5.2.2",
     "vite": "^4.5.0",
     "vite-plugin-dts": "^3.6.3"
+  },
+  "dependencies": {
+    "pako": "^2.1.0"
   }
 }

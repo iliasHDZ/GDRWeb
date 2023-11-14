@@ -20,7 +20,7 @@ window.onload = () => {
         renderer.camera.x = 0;
 
         console.log('Loading level...');
-        let level = GDLevel.parse(renderer, acu);
+        let level = await GDLevel.loadFromFile("levels/Acu.gmd", renderer);
         console.log('Loading complete...');
 
         console.log(level);

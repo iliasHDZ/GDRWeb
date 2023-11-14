@@ -22,6 +22,7 @@ import { ValueTrigger } from "./object/trigger/value-trigger";
 import { Profiler } from "./profiler";
 import { StopTriggerTrackList } from "./track/stop-trigger-track";
 import { GameState } from "./game-state";
+import { LevelDecoder, LevelFileExtension } from "./level-decoder";
 
 export class GDLevel {
     private data: GDObject[] = [];
@@ -170,6 +171,13 @@ export class GDLevel {
 
         level.init();
         return level;
+    }
+
+    static async loadFromFile(path: string, renderer: Renderer, extension: LevelFileExtension = "auto"): Promise<GDLevel> {
+        let decoder = new LevelDecoder();
+        await decoder.decodeFromFile(path, extension);
+
+        return GDLevel.parse(renderer, decoder.levelString);
     }
 
     getObjects(): GDObject[] {
