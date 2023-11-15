@@ -4,15 +4,20 @@ import { Mat3 } from '../util/mat3';
 import { GroupState } from '../groups';
 import { HSVShift } from '../util/hsvshift';
 import { Vec2 } from '../util/vec2';
+import { Profiler } from '../profiler';
 
 export abstract class RenderContext {
     canvas: HTMLCanvasElement;
+
+    abstract setProfiler(profiler: Profiler);
 
     abstract clearColor(c: Color);
 
     abstract compileObjects(c: ObjectBatch): any;
 
     abstract fillRect(pos: Vec2, size: Vec2, color: Color);
+
+    abstract renderTexture(pos: Vec2, size: Vec2, texture: any, color: Color);
     
     abstract render(c: ObjectBatch);
 

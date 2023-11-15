@@ -52,15 +52,11 @@ export class MoveTrigger extends ValueTrigger {
         this.duration = GDObject.parse(data[10], 'number', 0);
     }
 
-    public valueAfterDelta(startValue: TriggerValue, deltaTime: number, startTime: number): TriggerValue {
-        let startOffset = new Vec2(0, 0);
-        if (startValue instanceof MoveTriggerValue)
-            startOffset = startValue.offset;
-
+    public valueAfterDelta(_: TriggerValue, deltaTime: number, startTime: number): TriggerValue {
         const time = deltaTime / this.duration;
         let offset = new Vec2(0, 0);
         
-        if (isNaN(time) || time >= 1)
+        if (time >= 1 || isNaN(time))
             offset = new Vec2(this.moveX, this.moveY);
         else {
             // TODO: Implement easing rate
@@ -81,7 +77,7 @@ export class MoveTrigger extends ValueTrigger {
         if (this.lockToPlayerY && this.level)
             offset.y = this.level.gameStateAtPos(afterPos).approxYPos - this.level.gameStateAtPos(startPos).approxYPos;
 
-        return new MoveTriggerValue(startOffset.add(offset));
+        return new MoveTriggerValue(offset);
     }
 
     public getDuration(): number {

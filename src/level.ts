@@ -24,6 +24,8 @@ import { StopTriggerTrackList } from "./track/stop-trigger-track";
 import { GameState } from "./game-state";
 import { LevelDecoder, LevelFileExtension } from "./level-decoder";
 
+const LOADING_STEPS_COUNT = 10;
+
 export class GDLevel {
     private data: GDObject[] = [];
 
@@ -39,6 +41,10 @@ export class GDLevel {
 
     speed: PortalSpeed;
     song_offset: number;
+    backgroundId: number;
+    groundId: number;
+
+    loadProgEvent: (percent: number) => void | null = null;
 
     valid_channels: number[];
 
@@ -60,6 +66,11 @@ export class GDLevel {
         this.objectHSVManager = new ObjectHSVManager(this);
 
         this.profiler = new Profiler();
+    }
+
+    setProgress(step: number, percent: number) {
+        if (this.loadProgEvent != null)
+            this.loadProgEvent(step / LOADING_STEPS_COUNT + percent / LOADING_STEPS_COUNT);
     }
 
     static parseStartColor(level: GDLevel, str: string) {
@@ -120,6 +131,8 @@ export class GDLevel {
         level.speed = GDLevel.getLevelSpeedEnum(speed);
         
         level.song_offset = GDObject.parse(props['kA13'], 'number', 0);
+        level.backgroundId = GDObject.parse(props['kA6'], 'number', 1);
+        level.groundId = GDObject.parse(props['kA7'], 'number', 1);
 
         if (props['kS38']) {
             for (let c of props['kS38'].split('|'))
@@ -153,8 +166,13 @@ export class GDLevel {
         return obj;
     }
 
-    static parse(renderer: Renderer, data: string): GDLevel {
+    static parse(renderer: Renderer, data: string, loadProg: (percent: number) => void | null = null): GDLevel {
         let level = new GDLevel(renderer);
+        if (loadProg != null)
+            level.loadProgEvent = loadProg;
+
+        level.setProgress(0, 0);
+
         let split = data.split(';');
 
         this.parseLevelProps(level, split[0]);
@@ -167,10 +185,17 @@ export class GDLevel {
                 props[+psplit[p]] = psplit[p + 1];
             
             level.data.push(this.parseObject(level, props));
+
+            if (i % 1000 == 1)
+                level.setProgress(0, i / split.length);
         }
 
         level.init();
         return level;
+    }
+
+    static async parseAsync(renderer: Renderer, data: string, loadProg: (percent: number) => void | null = null): Promise<GDLevel> {
+        return this.parse(renderer, data, loadProg);
     }
 
     static async loadFromFile(path: string, renderer: Renderer, extension: LevelFileExtension = "auto"): Promise<GDLevel> {
@@ -318,7 +343,7 @@ export class GDLevel {
         for (let [ch, color] of Object.entries(this.startColors))
             this.colorTrackList.createTrackWithStartValue(+ch, new ColorTriggerValue(color));
 
-        this.colorTrackList.loadAllColorTriggers();
+        this.colorTrackList.loadAllColorTriggers(p => this.setProgress(2, p));
     }
 
     loadPulseTracks() {
@@ -332,12 +357,13 @@ export class GDLevel {
                 return null;
 
             return trigger.targetId;
-        });
+        }, p => this.setProgress(3, p));
     }
 
     init() {
         this.level_col = new ObjectBatch(this.renderer.ctx, this.renderer.sheet0, this.renderer.sheet2);
 
+        this.setProgress(1, 0);
         this.loadSpeedPortals();
 
         this.stopTrackList = new StopTriggerTrackList(this);
@@ -368,6 +394,7 @@ export class GDLevel {
         for (let o of this.data)
             data.push([o, ind++]);
 
+        this.setProgress(8, 0);
         data.sort((a, b) => {
             let r = GDObject.compareZOrder(a[0], b[0]);
             if (r != 0) return r;
@@ -377,7 +404,12 @@ export class GDLevel {
 
         this.valid_channels = [0];
 
+        let i = 0;
         for (let [obj] of data) {
+            if (i % 1000 == 0)
+                this.setProgress(9, i / data.length);
+            i++;
+
             const info = Renderer.objectInfo.getData(obj.id);
             if (!info) continue;
 

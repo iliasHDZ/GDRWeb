@@ -14,6 +14,7 @@ class ValueTriggerExecution extends TriggerExecution {
     track: ValueTriggerTrack;
     stoppedAt: number | null;
     valueTrigger: ValueTrigger;
+    cachedStartValue: TriggerValue | null = null;
 
     constructor(trigger: ValueTrigger, time: number, track: ValueTriggerTrack, stoppedAt: number | null = null) {
         super(trigger, time);
@@ -22,6 +23,13 @@ class ValueTriggerExecution extends TriggerExecution {
 
         this.track     = track;
         this.stoppedAt = stoppedAt;
+    }
+
+    getStartValue(): TriggerValue {
+        if (!this.cachedStartValue)
+            this.cachedStartValue = this.track.valueAt(this.time);
+
+        return this.cachedStartValue;
     }
 
     valueAt(start: TriggerValue, time: number): TriggerValue {
@@ -77,23 +85,39 @@ export class ValueTriggerTrack extends TriggerTrack {
         return new ValueTriggerExecution(trigger, time, this, stoppedAt);
     }
 
-    public valueAt(time: number): TriggerValue {
-        let value: TriggerValue = this.startValue;
-        let lastExec: ValueTriggerExecution = null;
+    public insertTrigger(trigger: Trigger, time: number): number {
+        const idx = super.insertTrigger(trigger, time);
+        for (let i = idx; i < this.executions.length; i++)
+            this.executions[i].cachedStartValue = null;
+
+        return idx;
+    }
+
+    public lastExecutionBefore(time: number): ValueTriggerExecution | null {
+        let lastExec: ValueTriggerExecution | null = null;
 
         for (let exec of this.executions) {
             if (exec.time >= time) break;
-
-            if (lastExec) 
-                value = lastExec.valueAt(value, exec.time);
-
             lastExec = exec;
         }
 
-        if (lastExec)
-            return lastExec.valueAt(value, time);
+        return lastExec;
+    }
+
+    public valueAt(time: number): TriggerValue {
+        const lastExec = this.lastExecutionBefore(time);
+        if (!lastExec)
+            return this.startValue;
         
-        return value;
+        return lastExec.valueAt(lastExec.getStartValue(), time);
+    }
+
+    public lastValueAt(time: number): TriggerValue {
+        const lastExec = this.lastExecutionBefore(time);
+        if (!lastExec)
+            return this.startValue;
+        
+        return lastExec.valueAt(this.startValue, time);
     }
 
     public combinedValueAt(startValue: TriggerValue, time: number): TriggerValue {
@@ -149,17 +173,17 @@ export class ValueTriggerTrackList extends TriggerTrackList {
         this.tracks[id] = new ValueTriggerTrack(startValue, this.eLevel);
     }
 
-    public loadAllColorTriggers() {
+    public loadAllColorTriggers(progFunc: (perc: number) => void | null = null) {
         this.loadAllNonSpawnTriggers((trigger: ValueTrigger) => {
             if (!(trigger instanceof ColorTrigger))
                 return null;
 
             return trigger.color;
-        });
+        }, progFunc);
     }
     
     // FIXME: Duplicate code with move triggers and toggle triggers
-    public loadAllAlphaTriggers() {
+    public loadAllAlphaTriggers(progFunc: (perc: number) => void | null = null) {
         this.loadAllNonSpawnTriggers((trigger: ValueTrigger) => {
             if (!(trigger instanceof AlphaTrigger))
                 return null;
@@ -168,10 +192,10 @@ export class ValueTriggerTrackList extends TriggerTrackList {
                 return null;
 
             return trigger.targetGroupId;
-        });
+        }, progFunc);
     }
 
-    public loadAllMoveTriggers() {
+    public loadAllMoveTriggers(progFunc: (perc: number) => void | null = null) {
         this.loadAllNonSpawnTriggers((trigger: ValueTrigger) => {
             if (!(trigger instanceof MoveTrigger))
                 return null;
@@ -180,10 +204,10 @@ export class ValueTriggerTrackList extends TriggerTrackList {
                 return null;
 
             return trigger.targetGroupId;
-        });
+        }, progFunc);
     }
 
-    public loadAllToggleTriggers() {
+    public loadAllToggleTriggers(progFunc: (perc: number) => void | null = null) {
         this.loadAllNonSpawnTriggers((trigger: ValueTrigger) => {
             if (!(trigger instanceof ToggleTrigger))
                 return null;
@@ -192,7 +216,7 @@ export class ValueTriggerTrackList extends TriggerTrackList {
                 return null;
 
             return trigger.targetGroupId;
-        });
+        }, progFunc);
     }
 
     public valueAt(id: number, time: number): TriggerValue {
@@ -201,6 +225,14 @@ export class ValueTriggerTrackList extends TriggerTrackList {
             return this.defaultStartValue;
 
         return track.valueAt(time);
+    }
+
+    public lastValueAt(id: number, time: number): TriggerValue {
+        const track = this.tracks[id];
+        if (!track)
+            return this.defaultStartValue;
+
+        return track.lastValueAt(time);
     }
 
     public layeredValueAt(id: number, time: number): TriggerValue {

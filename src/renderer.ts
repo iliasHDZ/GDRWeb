@@ -14,6 +14,29 @@ import { PlistAtlasLoader } from './object/plist-loader';
 import { SpriteCropInfo } from './util/sprite';
 import { Profile } from './profiler';
 
+const GD_BACKGROUND_COUNT = 20;
+const GD_GROUND_COUNT = 17;
+
+const groundNames: [string, string | null][] = [
+    ["groundSquare_01_001-hd", null],
+    ["groundSquare_02_001-hd", null],
+    ["groundSquare_03_001-hd", null],
+    ["groundSquare_04_001-hd", null],
+    ["groundSquare_05_001-hd", null],
+    ["groundSquare_06_001-hd", null],
+    ["groundSquare_07_001-hd", null],
+    ["groundSquare_08_001-hd", "groundSquare_08_2_001-hd"],
+    ["groundSquare_09_001-hd", "groundSquare_09_2_001-hd"],
+    ["groundSquare_10_001-hd", "groundSquare_10_2_001-hd"],
+    ["groundSquare_11_001-hd", "groundSquare_11_2_001-hd"],
+    ["groundSquare_12_001-hd", "groundSquare_12_2_001-hd"],
+    ["groundSquare_13_001-hd", "groundSquare_13_2_001-hd"],
+    ["groundSquare_14_001-hd", "groundSquare_14_2_001-hd"],
+    ["groundSquare_15_001-hd", "groundSquare_15_2_001-hd"],
+    ["groundSquare_16_001-hd", "groundSquare_16_2_001-hd"],
+    ["groundSquare_17_001-hd", "groundSquare_17_2_001-hd"],
+];
+
 export class Renderer {
     ctx: RenderContext;
 
@@ -25,6 +48,9 @@ export class Renderer {
     static objectInfo: GDObjectsInfo = null;
 
     handlers: {} = {};
+
+    backgrounds: { [id: number]: Texture } = {};
+    grounds: { [id: number]: [Texture | null, Texture | null] } = {};
 
     constructor(ctx: RenderContext, sheetpath0: string, sheetpath2: string) {
         this.ctx = ctx;
@@ -71,6 +97,46 @@ export class Renderer {
         }
     }
 
+    public async loadBackgrounds(bgPathFunc: (bgname: string) => string | null) {
+        for (let i = 1; i <= GD_BACKGROUND_COUNT; i++) {
+            const path = bgPathFunc(`game_bg_${i < 10 ? '0' + i : i}_001-hd`);
+            if (path == null)
+                continue;
+
+            const bg = new Texture(this.ctx);
+            bg.load(path);
+
+            this.backgrounds[i] = bg;
+        }
+    }
+
+    public async loadGrounds(gndPathFunc: (bgname: string) => string | null) {
+        for (let i = 1; i <= GD_GROUND_COUNT; i++) {
+            const gndNames = groundNames[i - 1];
+            let gndTexs: [Texture | null, Texture | null] = [null, null];
+
+            if (gndNames[0] != null) {
+                const path = gndPathFunc(gndNames[0]);
+                if (path != null) {
+                    const gnd = new Texture(this.ctx);
+                    gnd.load(path);
+                    gndTexs[0] = gnd;
+                }
+            }
+
+            if (gndNames[1] != null) {
+                const path = gndPathFunc(gndNames[1]);
+                if (path != null) {
+                    const gnd = new Texture(this.ctx);
+                    gnd.load(path);
+                    gndTexs[1] = gnd;
+                }
+            }
+
+            this.grounds[i] = gndTexs;
+        }
+    }
+
     emit(event: string, ...args) {
         if (this.handlers[event])
             for (let h of this.handlers[event])
@@ -84,6 +150,49 @@ export class Renderer {
         this.handlers[event].push(handler);
     }
 
+    renderGroundTexture(texture: Texture, color: Color, gndNum: number) {
+        let y: number;
+        if (gndNum == 0) {
+            y = texture.height / 2 - 256;
+        } else {
+            y = -(texture.height / 2);
+        }
+
+        const width = texture.width;
+        const camSize = this.camera.getCameraWorldSize();
+        
+        let begin = this.camera.x - camSize.x / 2;
+        let end   = this.camera.x + camSize.x / 2;
+
+        begin = Math.floor(begin / width);
+        end   = Math.ceil(end    / width);
+
+        for (let i = begin; i < end; i++) {
+            this.ctx.renderTexture(new Vec2(i * width + width / 2, y), new Vec2(texture.width, texture.height), texture.texture, color);
+        }
+
+    }
+
+    renderGround(level: GDLevel, currentTime: number) {
+        const [gnd1Color] = level.colorAtTime(1001, currentTime, 7);
+        const [gnd2Color] = level.colorAtTime(1009, currentTime, 7);
+        const [lineColor]   = level.colorAtTime(1002, currentTime, 7);
+
+        const camSize = this.camera.getCameraWorldSize();
+
+        const gndTexs = this.grounds[level.groundId == 0 ? 1 : level.groundId];
+        if (gndTexs) {
+            if (gndTexs[0] != null)
+                this.renderGroundTexture(gndTexs[0], gnd1Color, 0);
+            if (gndTexs[1] != null)
+                this.renderGroundTexture(gndTexs[1], gnd2Color, 1);
+        } else {
+            this.ctx.fillRect(new Vec2(this.camera.x, -64), new Vec2(camSize.x, 128), gnd1Color);
+        }
+
+        this.ctx.fillRect(new Vec2(this.camera.x, -1), new Vec2(camSize.x, 2), lineColor);
+    }
+
     render(level: GDLevel): Profile {
         level.profiler.start("Rendering");
 
@@ -95,15 +204,18 @@ export class Renderer {
         this.ctx.setSize(this.ctx.canvas.width, this.ctx.canvas.height);
         this.ctx.setViewMatrix(this.camera.getMatrix());
 
-        level.profiler.start("Color Channel Evaluation", true);
-        const [bg, _] = level.colorAtTime(1000, currentTime);
-        this.ctx.clearColor(bg);
-
-        for (let c of level.valid_channels) {
-            level.profiler.start("Channel " + c);
-            this.ctx.setColorChannel(c, ...level.colorAtTime(c, currentTime));
-            level.profiler.end();
+        level.profiler.start("Color Channel Evaluation");
+        const bg = this.backgrounds[level.backgroundId];
+        const [bgcolor, _] = level.colorAtTime(1000, currentTime);
+        if (bg && bg.loaded) {
+            const bgsize = this.camera.getCameraWorldSize();
+            this.ctx.renderTexture(this.camera.getPosition(), bgsize, bg.texture, bgcolor);
+        } else {
+            this.ctx.clearColor(bgcolor);
         }
+        
+        for (let c of level.valid_channels)
+            this.ctx.setColorChannel(c, ...level.colorAtTime(c, currentTime));
         level.profiler.end();
         
         level.profiler.start("Group State Evaluation");
@@ -118,16 +230,9 @@ export class Renderer {
             level.objectHSVsLoaded = true;
         }
 
-        const [groundColor] = level.colorAtTime(1001, currentTime);
-        const [lineColor]   = level.colorAtTime(1002, currentTime);
-
-        const camSize = this.camera.getCameraWorldSize();
-
         level.profiler.start("Render Call");
         this.ctx.render(level.level_col);
-
-        this.ctx.fillRect(new Vec2(this.camera.x, -64), new Vec2(camSize.x, 128), groundColor);
-        this.ctx.fillRect(new Vec2(this.camera.x, -1), new Vec2(camSize.x, 2), lineColor);
+        this.renderGround(level, currentTime);
         level.profiler.end();
 
         return level.profiler.end();

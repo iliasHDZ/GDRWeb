@@ -27,6 +27,10 @@ export class Camera {
         return new Vec2(x, y);
     }
 
+    getPosition(): Vec2 {
+        return new Vec2(this.x, this.y);
+    }
+
     getCameraWorldSize(): Vec2 {
         return this.screenSize.div(new Vec2(this.zoom, this.zoom));
     }

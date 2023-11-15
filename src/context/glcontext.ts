@@ -10,6 +10,7 @@ import { Vec2 } from '../util/vec2';
 import { SpriteCrop, SpriteCropInfo } from '../util/sprite';
 import { GroupState } from '../groups';
 import { HSVShift } from '../util/hsvshift';
+import { Profiler } from '../profiler';
 
 const VERT_SOURCE = `#version 300 es
 
@@ -356,10 +357,12 @@ uniform mat3 uModel;
 uniform vec4 uColor;
 
 out vec4 oColor;
+out vec2 oTexFrag;
 
 void main() {
     oColor = uColor;
 
+    oTexFrag = vec2(aPos.x + 0.5, 1.0 - (aPos.y + 0.5));
     gl_Position = vec4(uView * uModel * vec3(aPos, 1), 1);
 }
 `;
@@ -371,9 +374,18 @@ precision highp float;
 out vec4 outColor;
 
 in vec4 oColor;
+in vec2 oTexFrag;
+
+uniform bool uTextureEnabled;
+
+uniform sampler2D uTexture;
 
 void main() {
-    outColor = oColor;
+    if (uTextureEnabled) {
+        outColor = texture(uTexture, oTexFrag) * oColor;
+    } else {
+        outColor = oColor;
+    }
 }
 `;
 
@@ -441,6 +453,10 @@ export class WebGLContext extends RenderContext {
         });
 
         this.init();
+    }
+
+    setProfiler(profiler: Profiler) {
+        
     }
 
     setSize(width: number, height: number) {
@@ -855,6 +871,30 @@ export class WebGLContext extends RenderContext {
         this.quadShader.uMat3('uView', this.viewMatrix);
         this.quadShader.uMat3('uModel', model);
         this.quadShader.uColor('uColor', color);
+        this.quadShader.uInteger('uTextureEnabled', 0);
+
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    }
+
+    renderTexture(pos: Vec2, size: Vec2, texture: any, color: Color) {
+        let gl = this.gl;
+
+        let model = new Mat3();
+        model.translate(pos);
+        model.scale(size);
+
+        this.quadShader.use();
+        this.quad.use();
+
+        this.quadShader.uMat3('uView', this.viewMatrix);
+        this.quadShader.uMat3('uModel', model);
+        this.quadShader.uColor('uColor', color);
+        this.quadShader.uInteger('uTextureEnabled', 1);
+
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+
+        this.quadShader.uInteger('uTexture', 0);
 
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     }

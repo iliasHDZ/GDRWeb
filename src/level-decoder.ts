@@ -12,6 +12,10 @@ export class LevelDecoder {
         data = data.replaceAll("-", "+");
         data = data.replaceAll("_", "/");
 
+        /*const idx = data.lastIndexOf(' ');
+        if (idx != -1)
+            data = data.substring(0, idx);*/
+
         let array = Uint8Array.from(atob(data), c => c.charCodeAt(0));
 
         try {
@@ -35,8 +39,10 @@ export class LevelDecoder {
         pliststr = pliststr.replaceAll("</k>", "</key>");
         pliststr = pliststr.replaceAll("</i>", "</integer>");
         pliststr = pliststr.replaceAll("</s>", "</string>");
-        pliststr = pliststr.replaceAll("<t/>", "<true/>");
-        pliststr = pliststr.replaceAll("<f/>", "<false/>");
+        pliststr = pliststr.replaceAll("<t", "<true");
+        pliststr = pliststr.replaceAll("<f", "<false");
+
+        console.log(pliststr);
 
         const plist = parse(pliststr);
 

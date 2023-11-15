@@ -1,8 +1,9 @@
 # Release TODOs
-[ ] Background rendering
-[ ] Ground rendering
+[x] Background rendering
+[x] Ground rendering
 [ ] Object sprite opacity implementation
 [ ] Trigger hiding
+[ ] Loading progression
 [x] .lvl file loading
 [x] .gmd file loading
 [ ] .gmd2 file loading

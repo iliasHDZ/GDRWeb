@@ -43,6 +43,7 @@ interface GDLevel {
     getObjects(): GDObject[];
     timeAt(x: number): number;
     posAt(x: number): number;
+    setProgress(step: number, percent: number): void;
     stopTrackList: StopTriggerTrackList;
     profiler: Profiler;
 }
@@ -90,7 +91,6 @@ export class GroupManager {
     }
 
     reset() {
-        // this.groupStates = {};
         this.doubleGroups = {};
         this.lastDoubleGroupId = 0;
         this.startDoubleGroupIds = 0;
@@ -137,7 +137,10 @@ export class GroupManager {
     }
 
     getActiveValueAtTime(groupId: number, time: number): boolean {
-        return (this.toggleTrackList.valueAt(groupId, time) as ToggleTriggerValue).active;
+        this.level.profiler.start("Toggle Trigger Evaluation");
+        const value = (this.toggleTrackList.lastValueAt(groupId, time) as ToggleTriggerValue).active;
+        this.level.profiler.end();
+        return value;
     }
 
     getGroupStateAt(groupId: number, time: number): GroupState {
@@ -157,8 +160,16 @@ export class GroupManager {
     }
 
     loadGroups() {
+        const count = this.level.getObjects().length;
+        let i = 0;
+
         for (let obj of this.level.getObjects()) {
-            if (obj.groups.length == 0) continue;
+            if (i % 1000 == 0)
+                this.level.setProgress(4, i / count);
+            i++;
+
+            if (obj.groups.length == 0)
+                continue;
 
             for (let gid of obj.groups) {
                 if (gid > this.largestGroupId)
@@ -182,10 +193,10 @@ export class GroupManager {
 
     loadTriggers() {
         this.alphaTrackList = new ValueTriggerTrackList(this.level, AlphaTriggerValue.default());
-        this.alphaTrackList.loadAllAlphaTriggers();
+        this.alphaTrackList.loadAllAlphaTriggers(p => this.level.setProgress(5, p));
         
         this.moveTrackList = new ValueTriggerTrackList(this.level, MoveTriggerValue.default());
-        this.moveTrackList.loadAllMoveTriggers();
+        this.moveTrackList.loadAllMoveTriggers(p => this.level.setProgress(6, p));
 
         this.toggleTrackList = new ValueTriggerTrackList(this.level, ToggleTriggerValue.default());
         this.toggleTrackList.loadAllToggleTriggers();
@@ -258,6 +269,8 @@ export class GroupManager {
 
             largeGroupCombs = largeGroupCombs.filter(comb => comb.length > maxGroupsPerObject);
         }
+
+        console.log(`${Object.keys(this.doubleGroups).length} double groups generated`);
 
         if (largeGroupCombs.length == 0)
             return;
