@@ -1,4 +1,4 @@
-import { RenderContext } from './context/context'
+import { ContextRenderOptions, RenderContext } from './context/context'
 import { ObjectBatch } from './render/object-batch';
 import { Texture } from './render/texture';
 import { Color } from './util/color';
@@ -36,6 +36,10 @@ const groundNames: [string, string | null][] = [
     ["groundSquare_16_001-hd", "groundSquare_16_2_001-hd"],
     ["groundSquare_17_001-hd", "groundSquare_17_2_001-hd"],
 ];
+
+export interface RenderOptions {
+    hideTriggers: boolean;
+};
 
 export class Renderer {
     ctx: RenderContext;
@@ -170,7 +174,6 @@ export class Renderer {
         for (let i = begin; i < end; i++) {
             this.ctx.renderTexture(new Vec2(i * width + width / 2, y), new Vec2(texture.width, texture.height), texture.texture, color);
         }
-
     }
 
     renderGround(level: GDLevel, currentTime: number) {
@@ -193,7 +196,7 @@ export class Renderer {
         this.ctx.fillRect(new Vec2(this.camera.x, -1), new Vec2(camSize.x, 2), lineColor);
     }
 
-    render(level: GDLevel): Profile {
+    render(level: GDLevel, options: RenderOptions = { hideTriggers: false }): Profile {
         level.profiler.start("Rendering");
 
         const playerX = this.camera.x;// - 75;
@@ -205,7 +208,7 @@ export class Renderer {
         this.ctx.setViewMatrix(this.camera.getMatrix());
 
         level.profiler.start("Color Channel Evaluation");
-        const bg = this.backgrounds[level.backgroundId];
+        const bg = this.backgrounds[level.backgroundId == 0 ? 1 : level.backgroundId];
         const [bgcolor, _] = level.colorAtTime(1000, currentTime);
         if (bg && bg.loaded) {
             const bgsize = this.camera.getCameraWorldSize();
@@ -230,8 +233,12 @@ export class Renderer {
             level.objectHSVsLoaded = true;
         }
 
+        let ctxopts = new ContextRenderOptions();
+
+        ctxopts.hideTriggers = options.hideTriggers;
+
         level.profiler.start("Render Call");
-        this.ctx.render(level.level_col);
+        this.ctx.render(level.level_col, ctxopts);
         this.renderGround(level, currentTime);
         level.profiler.end();
 

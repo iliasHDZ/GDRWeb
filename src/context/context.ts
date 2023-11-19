@@ -6,6 +6,10 @@ import { HSVShift } from '../util/hsvshift';
 import { Vec2 } from '../util/vec2';
 import { Profiler } from '../profiler';
 
+export class ContextRenderOptions {
+    public hideTriggers: boolean = false;
+};
+
 export abstract class RenderContext {
     canvas: HTMLCanvasElement;
 
@@ -19,7 +23,7 @@ export abstract class RenderContext {
 
     abstract renderTexture(pos: Vec2, size: Vec2, texture: any, color: Color);
     
-    abstract render(c: ObjectBatch);
+    abstract render(c: ObjectBatch, options: ContextRenderOptions | null);
 
     abstract loadTexture(img: HTMLImageElement): any;
 

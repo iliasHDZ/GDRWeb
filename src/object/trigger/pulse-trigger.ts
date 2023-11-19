@@ -1,3 +1,5 @@
+import { PulseColorEntry, PulseEntry, PulseHSVEntry } from "../../pulse/pulse-entry";
+import { PulseList } from "../../pulse/pulse-list";
 import { Color } from "../../util/color";
 import { HSVShift } from "../../util/hsvshift";
 import { Util } from "../../util/util";
@@ -5,103 +7,60 @@ import { GDObject } from "../object";
 import { TriggerValue, ValueTrigger } from "./value-trigger";
 
 export class PulseTriggerValue extends TriggerValue {
-    public color: Color;
-    public hsvShift: HSVShift;
+    public pulseList: PulseList | null = null;
+    public pulseEntry: PulseEntry | null = null;
 
-    constructor(color: Color, hsvShift: HSVShift) {
+    constructor(pulseEntry: PulseEntry | null) {
         super();
-        this.color = color;
-        this.hsvShift = hsvShift;
+        this.pulseEntry = pulseEntry;
     }
 
-    static fromColor(color: Color): PulseTriggerValue {
-        return new PulseTriggerValue(color, new HSVShift());
+    static default(): PulseTriggerValue {
+        return new PulseTriggerValue(null);
     }
 
-    static fromHSVShift(hsv: HSVShift): PulseTriggerValue {
-        return new PulseTriggerValue(new Color(0, 0, 0, 0), hsv);
-    }
+    toPulseList(): PulseList {
+        let list = this.pulseList;
+        if (list == null)
+            list = new PulseList();
 
-    static empty(): PulseTriggerValue {
-        return new PulseTriggerValue(new Color(0, 0, 0, 0), new HSVShift());
-    }
+        if (this.pulseEntry != null)
+            list.add(this.pulseEntry);
 
-    isEmpty(): boolean {
-        return this.color.a == 0 && this.hsvShift.hue == 0 &&
-            this.hsvShift.saturation == (this.hsvShift.saturationAddition ? 0 : 1) &&
-            this.hsvShift.value == (this.hsvShift.valueAddition ? 0 : 1);
-    }
-
-    static blendColor(c1: Color, c2: Color, a: number): Color {
-        if (c1.a == 0)
-            c1 = new Color(c2.r, c2.g, c2.b, 0);
-
-        if (c2.a == 0)
-            c2 = new Color(c1.r, c1.g, c1.b, 0);
-
-        return c1.blend(c2, a);
-    }
-
-    static blendHSV(v1: HSVShift, v2: HSVShift, a: number): HSVShift {
-        if (v1.isEmpty()) {
-            v1 = new HSVShift(
-                0,
-                v2.saturationAddition ? 0 : 1,
-                v2.valueAddition ? 0 : 1,
-                v2.saturationAddition,
-                v2.valueAddition
-            );
-        }
-
-        if (v2.isEmpty()) {
-            v2 = new HSVShift(
-                0,
-                v1.saturationAddition ? 0 : 1,
-                v1.valueAddition ? 0 : 1,
-                v1.saturationAddition,
-                v1.valueAddition
-            );
-        }
-
-        return new HSVShift(
-            Util.lerp(v1.hue, v2.hue, a),
-            Util.lerp(v1.saturation, v2.saturation, a),
-            Util.lerp(v1.value, v2.value, a),
-            v1.saturationAddition,
-            v1.valueAddition
-        );
-    }
-
-    blend(val: PulseTriggerValue, a: number): PulseTriggerValue {
-        if (this.isEmpty())
-            return val.blendToEmpty(1 - a);
-        else if (val.isEmpty())
-            return this.blendToEmpty(a);
-
-        return new PulseTriggerValue(
-            PulseTriggerValue.blendColor(this.color, val.color, a),
-            PulseTriggerValue.blendHSV(this.hsvShift, val.hsvShift, a)
-        );
-    }
-
-    blendToEmpty(a: number): PulseTriggerValue {
-        return new PulseTriggerValue(
-            this.color.blend(new Color(this.color.r, this.color.g, this.color.b, 0), a),
-            new HSVShift(
-                Util.lerp(this.hsvShift.hue, 0, a),
-                Util.lerp(this.hsvShift.saturation, this.hsvShift.saturationAddition ? 0 : 1, a),
-                Util.lerp(this.hsvShift.value, this.hsvShift.valueAddition ? 0 : 1, a),
-                this.hsvShift.saturationAddition,
-                this.hsvShift.valueAddition
-            )
-        );
+        return list;
     }
 
     applyToColor(color: Color): Color {
-        let ret = color.blend(new Color(this.color.r, this.color.g, this.color.b, 1), this.color.a);
-        ret.a = color.a;
+        if (this.pulseList != null)
+            color = this.pulseList.applyToColor(color);
 
-        return this.hsvShift.shiftColor(ret);
+        if (this.pulseEntry != null)
+            color = this.pulseEntry.applyToColor(color);
+
+        return color;
+    }
+
+    combineWith(value: TriggerValue): TriggerValue | null {
+        if (!(value instanceof PulseTriggerValue))
+            return null;
+
+        let res = PulseTriggerValue.default();
+
+        if (this.pulseList != null)
+            res.pulseList = this.pulseList;
+        else
+            res.pulseList = new PulseList();
+
+        if (this.pulseEntry != null)
+            res.pulseList.add(this.pulseEntry);
+
+        if (value.pulseList != null)
+            res.pulseList.addList(value.pulseList);
+
+        if (value.pulseEntry != null)
+            res.pulseList.add(value.pulseEntry);
+
+        return res;
     }
 };
 
@@ -135,7 +94,7 @@ export class PulseTrigger extends ValueTrigger {
     */
     targetId: number;
 
-    mainOnly: boolean;
+    baseOnly: boolean;
     detailOnly: boolean;
 
     duration: number;
@@ -158,35 +117,46 @@ export class PulseTrigger extends ValueTrigger {
 
         this.pulseHsv = HSVShift.parse(data[49]);
         
-        this.mainOnly   = GDObject.parse(data[65], 'boolean', false);
+        this.baseOnly   = GDObject.parse(data[65], 'boolean', false);
         this.detailOnly = GDObject.parse(data[66], 'boolean', false);
 
         this.targetId = GDObject.parse(data[51], 'number', 0);
     }
 
-    getTriggerValue(): PulseTriggerValue {
-        if (this.pulseMode == PulseMode.COLOR)
-            return PulseTriggerValue.fromColor(Color.fromRGBA(this.r, this.g, this.b, 255));
-        else
-            return PulseTriggerValue.fromHSVShift(this.pulseHsv);
+    intensityAt(deltaTime: number): number {
+        if (deltaTime < 0 || deltaTime > this.getDuration())
+            return 0;
+
+        if (deltaTime < this.fadeIn)
+            return deltaTime / this.fadeIn;
+
+        if (deltaTime < (this.fadeIn + this.hold))
+            return 1;
+
+        return 1 - (deltaTime - this.fadeIn - this.hold) / this.fadeOut;
     }
 
-    public valueAfterDelta(startValue: TriggerValue, deltaTime: number, _: number): TriggerValue {
-        if (!(startValue instanceof PulseTriggerValue))
-            return PulseTriggerValue.empty();
+    getPulseEntryAt(deltaTime: number): PulseEntry | null {
+        const intensity = this.intensityAt(deltaTime);
+        if (intensity == 0)
+            return null;
 
+        if (this.pulseMode == PulseMode.COLOR)
+            return new PulseColorEntry(Color.fromRGBA(this.r, this.g, this.b, 255), intensity, this.baseOnly, this.detailOnly);
+
+        return new PulseHSVEntry(this.pulseHsv, intensity, this.baseOnly, this.detailOnly);
+    }
+
+    public valueAfterDelta(_1: TriggerValue, deltaTime: number, _2: number): TriggerValue {
         if (deltaTime >= this.getDuration())
-            return PulseTriggerValue.empty();
+            return PulseTriggerValue.default();
 
-        const target = this.getTriggerValue();
-        
-        if (deltaTime < this.fadeIn) {
-            return startValue.blend(target, deltaTime / this.fadeIn);
-        } else if (deltaTime < (this.fadeIn + this.hold)) {
-            return target;
-        } else {
-            return target.blendToEmpty((deltaTime - this.fadeIn - this.hold) / this.fadeOut);
-        }
+        const entry = this.getPulseEntryAt(deltaTime);
+
+        if (entry != null)
+            return new PulseTriggerValue(entry);
+        else
+            return PulseTriggerValue.default();
     }
 
     public getDuration(): number {

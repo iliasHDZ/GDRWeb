@@ -16,7 +16,7 @@ import { CopyColor } from "./util/copycolor";
 import { ObjectSprite, ObjectSpriteColor } from "./object/info/object-sprite";
 import { ValueTriggerTrackList } from "./track/value-trigger-track";
 import { GroupManager } from "./groups";
-import { HSVShift } from "./util/hsvshift";
+import { HSVShift, hsv2rgb, rgb2hsv } from "./util/hsvshift";
 import { ObjectHSVManager } from "./objecthsv";
 import { ValueTrigger } from "./object/trigger/value-trigger";
 import { Profiler } from "./profiler";
@@ -24,7 +24,22 @@ import { StopTriggerTrackList } from "./track/stop-trigger-track";
 import { GameState } from "./game-state";
 import { LevelDecoder, LevelFileExtension } from "./level-decoder";
 
+import object_types from "../assets/object_types.json";
+
 const LOADING_STEPS_COUNT = 10;
+
+export enum ColorChannel {
+    BG = 1000,
+    G1 = 1001,
+    LINE = 1002,
+    CH_3DL = 1003,
+    OBJ = 1004,
+    P1 = 1005,
+    P2 = 1006,
+    LBG = 1007,
+    G2 = 1009,
+    BLACK = 1010
+};
 
 export class GDLevel {
     private data: GDObject[] = [];
@@ -198,6 +213,13 @@ export class GDLevel {
         return this.parse(renderer, data, loadProg);
     }
 
+    static fromBase64String(renderer: Renderer, data: string): GDLevel {
+        let decoder = new LevelDecoder();
+        decoder.decodeBase64Level(data);
+
+        return GDLevel.parse(renderer, decoder.levelString);
+    }
+
     static async loadFromFile(path: string, renderer: Renderer, extension: LevelFileExtension = "auto"): Promise<GDLevel> {
         let decoder = new LevelDecoder();
         await decoder.decodeFromFile(path, extension);
@@ -280,13 +302,30 @@ export class GDLevel {
         return col.color;
     }
 
+    getLBG(time: number): [Color, boolean] {
+        const [bg] = this.colorAtTime(ColorChannel.BG, time);
+        const [p1] = this.colorAtTime(ColorChannel.P1, time);
+
+        let hsv = rgb2hsv(bg.r, bg.g, bg.b);
+        hsv[1] = Math.max(hsv[1] - 20, 0);
+
+        const [r, g, b] = hsv2rgb(...hsv);
+    
+        return [p1.blend(new Color(r, g, b, 1), hsv[2] / 100), true];
+    }
+
     colorAtTime(ch: number, time: number, iterations: number = 8): [Color, boolean] {
+        let color: Color, blending: boolean;
         if (iterations == 8) this.profiler.start("Color Trigger Evaluation");
-        let [color, blending] = this.gdColorAt(ch, time).evaluate(this, time, iterations);
+        if (ch == ColorChannel.LBG) {
+            [color, blending] = this.getLBG(time);
+        } else {
+            [color, blending] = this.gdColorAt(ch, time).evaluate(this, time, iterations);
+        }
         if (iterations == 8) this.profiler.end();
 
         if (iterations == 8) this.profiler.start("Pulse Trigger Evaluation");
-        const pulse = this.pulseTrackList.valueAt(ch, time) as PulseTriggerValue;
+        const pulse = this.pulseTrackList.combinedValueAt(ch, time) as PulseTriggerValue;
         color = pulse.applyToColor(color);
         if (iterations == 8) this.profiler.end();
 
@@ -323,7 +362,8 @@ export class GDLevel {
             sprite.sprite,
             groups,
             hsvId,
-            sprite.colorType == ObjectSpriteColor.BLACK
+            sprite.colorType == ObjectSpriteColor.BLACK,
+            object_types.triggers.includes(object.id)
         );
     }
 
@@ -347,7 +387,7 @@ export class GDLevel {
     }
 
     loadPulseTracks() {
-        this.pulseTrackList = new ValueTriggerTrackList(this, PulseTriggerValue.empty());
+        this.pulseTrackList = new ValueTriggerTrackList(this, PulseTriggerValue.default());
 
         this.pulseTrackList.loadAllNonSpawnTriggers((trigger: ValueTrigger) => {
             if (!(trigger instanceof PulseTrigger))

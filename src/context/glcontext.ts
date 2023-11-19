@@ -1,4 +1,4 @@
-import { RenderContext } from './context';
+import { ContextRenderOptions, RenderContext } from './context';
 import { Color } from './../util/color';
 import { ObjectBatch } from '../render/object-batch';
 import { ShaderProgram } from './webgl2/program';
@@ -11,6 +11,8 @@ import { SpriteCrop, SpriteCropInfo } from '../util/sprite';
 import { GroupState } from '../groups';
 import { HSVShift } from '../util/hsvshift';
 import { Profiler } from '../profiler';
+import { TextureObject } from '../render/texture-object';
+import { PulseColorEntry, PulseHSVEntry } from '../pulse/pulse-entry';
 
 const VERT_SOURCE = `#version 300 es
 
@@ -32,16 +34,19 @@ out vec4 oColor;
 out float oAlpha;
 
 flat out int oBlending;
-
 flat out int oFlags;
+
+vec2 pulseSels[4];
 
 uniform sampler2D uColorInfoTexture;
 uniform sampler2D uGroupStateTexture;
 uniform sampler2D uObjectHSVTexture;
+uniform sampler2D uPulseTexture;
 
 struct GroupState {
     float opacity;
     vec2 offset;
+    vec2 pulseSel;
 };
 
 struct HSVShift {
@@ -60,16 +65,20 @@ vec4 getInfoTexPix(int i, int tex) {
         size = vec2(textureSize(uColorInfoTexture, 0));
     else if (tex == 1)
         size = vec2(textureSize(uGroupStateTexture, 0));
-    else
+    else if (tex == 2)
         size = vec2(textureSize(uObjectHSVTexture, 0));
+    else
+        size = vec2(textureSize(uPulseTexture, 0));
 
     vec2 texCoords = vec2(mod(float(i), size.x) + 0.5, floor(float(i) / size.x) + 0.5) / size;
     if (tex == 0)
         return texture(uColorInfoTexture, texCoords);
     else if (tex == 1)
         return texture(uGroupStateTexture, texCoords);
-    else
+    else if (tex == 2)
         return texture(uObjectHSVTexture, texCoords);
+    else
+        return texture(uPulseTexture, texCoords);
 }
 
 GroupState combineGroupStates(GroupState s1, GroupState s2) {
@@ -80,11 +89,13 @@ GroupState combineGroupStates(GroupState s1, GroupState s2) {
 }
 
 GroupState getGroupState(int id) {
-    vec4 a = getInfoTexPix(id, 1);
+    vec4 a = getInfoTexPix(id * 2, 1);
+    vec4 b = getInfoTexPix(id * 2 + 1, 1);
 
     GroupState res;
-    res.opacity = a.r;
-    res.offset  = a.gb;
+    res.opacity  = a.r;
+    res.offset   = a.gb;
+    res.pulseSel = b.xy;
     return res;
 }
 
@@ -102,8 +113,10 @@ GroupState getGroupStateFromGroups(vec4 groups) {
             current = combineGroupStates(current, state);
         else
             current = state;
+        pulseSels[0] = state.pulseSel;
         gsp = true;
-    }
+    } else
+        pulseSels[0] = vec2(0, 0);
 
     if (groups.y != 0.0) {
         state = getGroupState(int(groups.y));
@@ -111,8 +124,10 @@ GroupState getGroupStateFromGroups(vec4 groups) {
             current = combineGroupStates(current, state);
         else
             current = state;
+        pulseSels[1] = state.pulseSel;
         gsp = true;
-    }
+    } else
+        pulseSels[1] = vec2(0, 0);
 
     if (groups.z != 0.0) {
         state = getGroupState(int(groups.z));
@@ -120,8 +135,10 @@ GroupState getGroupStateFromGroups(vec4 groups) {
             current = combineGroupStates(current, state);
         else
             current = state;
+        pulseSels[2] = state.pulseSel;
         gsp = true;
-    }
+    } else
+        pulseSels[2] = vec2(0, 0);
 
     if (groups.w != 0.0) {
         state = getGroupState(int(groups.w));
@@ -129,8 +146,10 @@ GroupState getGroupStateFromGroups(vec4 groups) {
             current = combineGroupStates(current, state);
         else
             current = state;
+        pulseSels[3] = state.pulseSel;
         gsp = true;
-    }
+    } else
+        pulseSels[3] = vec2(0, 0);
 
     return current;
 }
@@ -140,9 +159,7 @@ float pixFloatToSignedFloat(float a) {
     return (a >= 128.0) ? -mod(a, 128.0) : mod(a, 128.0);
 }
 
-HSVShift getObjectHSVShift(int hsvId) {
-    vec4 pix = getInfoTexPix(hsvId, 2);
-
+HSVShift getHSVFromPix(vec4 pix) {
     int flags = int(pix.a * 255.0);
 
     int hueNeg = flags >> 7;
@@ -154,8 +171,13 @@ HSVShift getObjectHSVShift(int hsvId) {
     hsv.valAdd = ((flags >> 5) & 1) == 1;
     hsv.sat = hsv.satAdd ? pixFloatToSignedFloat(pix.g) : pix.g * 2.0;
     hsv.val = hsv.valAdd ? pixFloatToSignedFloat(pix.b) : pix.b * 2.0;
-
     return hsv;
+}
+
+HSVShift getObjectHSVShift(int hsvId) {
+    vec4 pix = getInfoTexPix(hsvId, 2);
+
+    return getHSVFromPix(pix);
 }
 
 // Credits to sam hocevar for the following two functions
@@ -180,13 +202,40 @@ vec4 shiftColor(vec4 color, HSVShift shift) {
 
     hsv.x = mod(hsv.x + shift.hue, 1.0);
 
-    hsv.y = /*shift.satAdd ? (hsv.y + shift.sat) :*/ (hsv.y * shift.sat);
-    hsv.z = /*shift.valAdd ? (hsv.z + shift.val) :*/ (hsv.z * shift.val);
+    hsv.y = shift.satAdd ? (hsv.y + shift.sat) : (hsv.y * shift.sat);
+    hsv.z = shift.valAdd ? (hsv.z + shift.val) : (hsv.z * shift.val);
 
     hsv.y = clamp(hsv.y, 0.0, 1.0);
     hsv.z = clamp(hsv.z, 0.0, 1.0);
 
     return vec4(hsv2rgb(hsv), color.a);
+}
+
+vec4 applyPulseEntryToColor(vec4 color, int idx) {
+    vec4 pe1 = getInfoTexPix(idx * 2, 3);
+    vec4 pe2 = getInfoTexPix(idx * 2 + 1, 3);
+    
+    float intensity = pe1.x;
+    vec3 ncolor = vec3(0, 0, 0);
+    if (pe1.w < 0.1) {
+        return color;
+    } else if (pe1.w < 0.5) {
+        ncolor = pe2.rgb;
+    } else {
+        ncolor = shiftColor(color, getHSVFromPix(pe2)).rgb;
+    }
+    return vec4(mix(color.rgb, ncolor, intensity), color.a);
+}
+
+vec4 applyPulseSelToColor(vec4 color, vec2 sel) {
+    int idx  = int(sel.x);
+    int size = int(sel.y);
+
+    for (int i = idx; i < idx + size; i++) {
+        color = applyPulseEntryToColor(color, i);
+    }
+
+    return color;
 }
 
 vec4 getChannelColor(int channel) {
@@ -224,6 +273,11 @@ void main() {
 
     GroupState state = getGroupStateFromGroups(aGroups);
 
+    oColor = applyPulseSelToColor(oColor, pulseSels[0]);
+    oColor = applyPulseSelToColor(oColor, pulseSels[1]);
+    oColor = applyPulseSelToColor(oColor, pulseSels[2]);
+    oColor = applyPulseSelToColor(oColor, pulseSels[3]);
+
     oAlpha = state.opacity;
 
     if (int(aHsv) != 0) {
@@ -260,6 +314,8 @@ flat in int oBlending;
 
 flat in int oFlags;
 
+uniform bool uHideTriggers;
+
 uniform sampler2D uTexture;
 uniform sampler2D uSecondTexture;
 
@@ -276,6 +332,9 @@ vec4 getTexFrag(vec2 pos) {
 }
 
 void main() {
+    if (uHideTriggers && imod(oFlags / 4, 2) > 0)
+        discard;
+
     if (oAlpha == 0.0)
         discard;
 
@@ -402,7 +461,7 @@ const attributes = {
 };
 
 const GROUP_STATE_TEXTURE_WIDTH = 512;
-const FLOATS_PER_GROUP_STATE = 4;
+const FLOATS_PER_GROUP_STATE = 8;
 
 const OBJECT_HSV_TEXTURE_WIDTH = 256;
 const BYTES_PER_OBJECT_HSV = 4;
@@ -431,6 +490,9 @@ export class WebGLContext extends RenderContext {
     colorInfoTexture: WebGLTexture;
     groupStateTexture: WebGLTexture;
     objectHSVTexture: WebGLTexture;
+    pulseTexture: WebGLTexture;
+
+    pulseTextureSelections: { [id: number]: [number, number] } = {};
 
     quadShader: ShaderProgram;
     quad: BufferArray;
@@ -496,6 +558,7 @@ export class WebGLContext extends RenderContext {
         this.colorInfoTexture  = this.createInfoTexture();
         this.groupStateTexture = this.createInfoTexture();
         this.objectHSVTexture  = this.createInfoTexture();
+        this.pulseTexture      = this.createInfoTexture();
 
         this.quadShader = new ShaderProgram(gl);
         this.quadShader.loadShader(gl.VERTEX_SHADER,   QUAD_VERT_SOURCE);
@@ -617,9 +680,16 @@ export class WebGLContext extends RenderContext {
             buffer[i] = 0;
 
         for (let [id, state] of Object.entries(this.groupStates)) {
+            const pulseSelection = this.pulseTextureSelections[+id];
+
             buffer[+id * fpgs + 0] = state.active ? state.opacity : 0;
             buffer[+id * fpgs + 1] = state.offset.x;
             buffer[+id * fpgs + 2] = state.offset.y;
+            buffer[+id * fpgs + 3] = 0;
+            buffer[+id * fpgs + 4] = pulseSelection[0];
+            buffer[+id * fpgs + 5] = pulseSelection[1];
+            buffer[+id * fpgs + 6] = 0;
+            buffer[+id * fpgs + 7] = 0;
         }
 
         this.updateFloatInfoTexture(buffer, this.groupStateTexture, GROUP_STATE_TEXTURE_WIDTH);
@@ -652,6 +722,16 @@ export class WebGLContext extends RenderContext {
         );
     }
 
+    setHSVIntoBuffer(buffer: Uint8Array, idx: number, hsv: HSVShift) {
+        const hueNeg = (hsv.hue < 0) ? 1 : 0;
+        const flags  = (hueNeg << 7) | (+hsv.saturationAddition << 6) | (+hsv.valueAddition << 5);
+
+        buffer[idx + 0] = Math.abs(hsv.hue);
+        buffer[idx + 1] = hsv.saturationAddition ? (Math.abs(hsv.saturation) + 128 * +(hsv.saturation < 0)) : hsv.saturation * 127;
+        buffer[idx + 2] = hsv.valueAddition ? (Math.abs(hsv.value) + 128 * +(hsv.value < 0)) : hsv.value * 127;
+        buffer[idx + 3] = flags;
+    }
+
     updateHSVObjectTexture() {
         const bpoh = BYTES_PER_OBJECT_HSV;
 
@@ -664,17 +744,53 @@ export class WebGLContext extends RenderContext {
         for (let [id, hsv] of Object.entries(this.objectHSVs)) {
             const idx = +id * bpoh;
 
-            const hueNeg = (hsv.hue < 0) ? 1 : 0;
-
-            const flags = (hueNeg << 7) | (+hsv.saturationAddition << 6) | (+hsv.valueAddition << 5);
-
-            buffer[idx + 0] = Math.abs(hsv.hue);
-            buffer[idx + 1] = hsv.saturationAddition ? (Math.abs(hsv.saturation) + 128 * +(hsv.saturation < 0)) : hsv.saturation * 127;
-            buffer[idx + 2] = hsv.valueAddition ? (Math.abs(hsv.value) + 128 * +(hsv.value < 0)) : hsv.value * 127;
-            buffer[idx + 3] = flags;
+            this.setHSVIntoBuffer(buffer, idx, hsv);
         }
 
         this.updateInfoTexture(buffer, this.objectHSVTexture, OBJECT_HSV_TEXTURE_WIDTH);
+    }
+
+    updatePulseTexture() {
+        const bppe = 8;
+
+        let count = 0;
+        for (let v of Object.values(this.groupStates))
+            count += v.pulseList.entries.length;
+
+        let buffer = new Uint8Array(count * bppe);
+
+        for (let i = 0; i < buffer.length; i++)
+            buffer[i] = 0;
+
+        let idx = 0;
+        for (let [id, state] of Object.entries(this.groupStates)) {
+            const groupId  = +id;
+            const startIdx = idx / bppe;
+
+            for (let entry of state.pulseList.entries) {
+                buffer[idx + 0] = entry.intensity * 255;
+                buffer[idx + 1] = entry.baseOnly ? 1 : 0;
+                buffer[idx + 2] = entry.detailOnly ? 1 : 0;
+                if (entry instanceof PulseColorEntry) {
+                    buffer[idx + 3] = 100;
+                    buffer[idx + 4] = entry.color.r * 255;
+                    buffer[idx + 5] = entry.color.g * 255;
+                    buffer[idx + 6] = entry.color.b * 255;
+                    buffer[idx + 7] = entry.color.a * 255;
+                } else if (entry instanceof PulseHSVEntry) {
+                    buffer[idx + 3] = 255;
+                    this.setHSVIntoBuffer(buffer, idx + 4, entry.hsv);
+                } else
+                    buffer[idx + 3] = 0;
+
+                idx += bppe;
+            }
+
+            const size = (idx / bppe) - startIdx;
+            this.pulseTextureSelections[groupId] = [startIdx, size];
+        }
+
+        this.updateInfoTexture(buffer, this.pulseTexture, 256);
     }
 
     clearColor(c: Color) {
@@ -707,7 +823,8 @@ export class WebGLContext extends RenderContext {
         return t;
     }
 
-    genQuadStructs(m: Mat3, c: number, sprite: SpriteCropInfo, groups: number[] = [0, 0, 0, 0], hsvId: number, black: boolean): any {
+    genQuadStructs(obj: TextureObject): any {
+        let groups = obj.groups;
         groups = groups.slice();
 
         while (groups.length < 4)
@@ -727,7 +844,7 @@ export class WebGLContext extends RenderContext {
             new Vec2( -0.5, -0.5 )
         ];
 
-        const crop = sprite.crop;
+        const crop = obj.sprite.crop;
 
         let t_l = crop.x,
             t_r = crop.x + crop.w,
@@ -736,7 +853,7 @@ export class WebGLContext extends RenderContext {
 
         let t: Vec2[];
         
-        if (sprite.rotated) {
+        if (obj.sprite.rotated) {
             t = [
                 new Vec2( t_r, t_t ),
                 new Vec2( t_l, t_t ),
@@ -760,17 +877,18 @@ export class WebGLContext extends RenderContext {
 
         let aFlags = 0;
 
-        aFlags |= sprite.sheet == 2 ? 1 : 0;
-        aFlags |= black ? 2 : 0;
+        aFlags |= obj.sprite.sheet == 2 ? 1 : 0;
+        aFlags |= obj.black ? 2 : 0;
+        aFlags |= obj.trigger ? 4 : 0;
 
         for (let i = 0; i < q.length; i++) {
             r.push({
-                aPos: m.transform(q[i]).buffer(),
-                aCol: c,
+                aPos: obj.model.transform(q[i]).buffer(),
+                aCol: obj.color,
                 aFlags,
                 aTex: t[i].buffer(),
                 aGroups: groups,
-                aHsv: hsvId,
+                aHsv: obj.hsvId,
                 aSCp
             });
         }
@@ -847,7 +965,7 @@ export class WebGLContext extends RenderContext {
         const builder = new BufferArrayBuilder(attributes);
 
         for (let o of c.objects) {
-            const quad = this.genQuadStructs(o.model, o.color, o.sprite, o.groups, o.hsvId, o.black);
+            const quad = this.genQuadStructs(o);
             for (let a of quad)
                 builder.add(a);
         }
@@ -899,21 +1017,28 @@ export class WebGLContext extends RenderContext {
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     }
 
-    render(c: ObjectBatch) {
+    render(c: ObjectBatch, options: ContextRenderOptions | null) {
         let gl = this.gl;
+
+        if (options == null)
+            options = new ContextRenderOptions();
 
         this.program.use();
         c.buffer.array.use();
 
         this.updateColorInfoTexture();
+        this.updatePulseTexture();
         this.updateGroupStateTexture();
         this.updateHSVObjectTexture();
+
+        this.program.uInteger('uHideTriggers', options.hideTriggers ? 1 : 0);
 
         this.program.uInteger('uTexture', 0);
         this.program.uInteger('uSecondTexture', 1);
         this.program.uInteger('uColorInfoTexture', 2);
         this.program.uInteger('uGroupStateTexture', 3);
         this.program.uInteger('uObjectHSVTexture', 4);
+        this.program.uInteger('uPulseTexture', 5);
 
         if (c.mainTexture.loaded) {
             gl.activeTexture(gl.TEXTURE0);
@@ -932,6 +1057,9 @@ export class WebGLContext extends RenderContext {
             
             gl.activeTexture(gl.TEXTURE4);
             gl.bindTexture(gl.TEXTURE_2D, this.objectHSVTexture);
+            
+            gl.activeTexture(gl.TEXTURE5);
+            gl.bindTexture(gl.TEXTURE_2D, this.pulseTexture);
 
             gl.drawArrays(gl.TRIANGLES, 0, c.buffer.count);
         }

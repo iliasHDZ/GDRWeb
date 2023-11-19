@@ -35,10 +35,12 @@ export class LevelDecoder {
         pliststr = pliststr.replaceAll("<k>", "<key>");
         pliststr = pliststr.replaceAll("<i>", "<integer>");
         pliststr = pliststr.replaceAll("<s>", "<string>");
+        pliststr = pliststr.replaceAll("<r>", "<real>");
         pliststr = pliststr.replaceAll("</d>", "</dict>");
         pliststr = pliststr.replaceAll("</k>", "</key>");
         pliststr = pliststr.replaceAll("</i>", "</integer>");
         pliststr = pliststr.replaceAll("</s>", "</string>");
+        pliststr = pliststr.replaceAll("</r>", "</real>");
         pliststr = pliststr.replaceAll("<t", "<true");
         pliststr = pliststr.replaceAll("<f", "<false");
 

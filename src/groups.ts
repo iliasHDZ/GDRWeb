@@ -8,6 +8,8 @@ import { Profiler } from "./profiler";
 import { StopTriggerTrackList } from "./track/stop-trigger-track";
 import { Color } from "./util/color";
 import { ValueTriggerTrack, ValueTriggerTrackList } from "./track/value-trigger-track";
+import { PulseTargetType, PulseTrigger, PulseTriggerValue } from "./object/trigger/pulse-trigger";
+import { PulseList } from "./pulse/pulse-list";
 
 function isSameSet(set1: number[], set2: number[]): boolean {
     if (set1.length != set2.length)
@@ -24,6 +26,7 @@ export class GroupState {
     opacity: number = 1;
     offset: Vec2 = new Vec2(0, 0);
     active: boolean = true;
+    pulseList: PulseList;
     /*lastPulseTime: number = 0;
     pulseBaseColor: Color = new Color(0, 0, 0, 0);
     pulseDetailColor: Color = new Color(0, 0, 0, 0);*/
@@ -34,6 +37,10 @@ export class GroupState {
         res.opacity = this.opacity * state.opacity;
         res.offset  = this.offset.add(state.offset);
         res.active  = this.active || state.active;
+
+        res.pulseList = new PulseList();
+        res.pulseList.addList(this.pulseList);
+        res.pulseList.addList(state.pulseList);
 
         return res;
     }
@@ -83,6 +90,7 @@ export class GroupManager {
     alphaTrackList: ValueTriggerTrackList;
     moveTrackList: ValueTriggerTrackList;
     toggleTrackList: ValueTriggerTrackList;
+    pulseTrackList: ValueTriggerTrackList;
 
     level: GDLevel;
 
@@ -143,6 +151,10 @@ export class GroupManager {
         return value;
     }
 
+    getPulseListAtTime(groupId: number, time: number): PulseList {
+        return (this.pulseTrackList.combinedValueAt(groupId, time) as PulseTriggerValue).toPulseList();
+    }
+
     getGroupStateAt(groupId: number, time: number): GroupState {
         if (groupId >= this.startDoubleGroupIds) {
             const [group1, group2] = this.doubleGroups[groupId];
@@ -152,9 +164,10 @@ export class GroupManager {
         }
 
         const state = new GroupState();
-        state.opacity = this.getAlphaValueAtTime(groupId, time);
-        state.offset  = this.getMoveOffsetAtTime(groupId, time);
-        state.active  = this.getActiveValueAtTime(groupId, time);
+        state.opacity   = this.getAlphaValueAtTime(groupId, time);
+        state.offset    = this.getMoveOffsetAtTime(groupId, time);
+        state.active    = this.getActiveValueAtTime(groupId, time);
+        state.pulseList = this.getPulseListAtTime(groupId, time);
 
         return state;
     }
@@ -200,6 +213,17 @@ export class GroupManager {
 
         this.toggleTrackList = new ValueTriggerTrackList(this.level, ToggleTriggerValue.default());
         this.toggleTrackList.loadAllToggleTriggers();
+
+        this.pulseTrackList = new ValueTriggerTrackList(this.level, PulseTriggerValue.default());
+        this.pulseTrackList.loadAllNonSpawnTriggers((trigger: ValueTrigger) => {
+            if (!(trigger instanceof PulseTrigger))
+                return null;
+
+            if (trigger.targetType != PulseTargetType.GROUP || trigger.targetId == 0)
+                return null;
+
+            return trigger.targetId;
+        });
     }
 
     createDoubleGroup(group1: number, group2: number): number {

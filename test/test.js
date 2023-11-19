@@ -20,7 +20,7 @@ function run() {
     let my = 0;
 
     const render = () => {
-        const profile = renderer.render(level);
+        const profile = renderer.render(level, { hideTriggers: false });
 
         const fps = Math.floor(1000 / profile.duration);
         const renderdur = profile.duration.toLocaleString('en-US', {maximumFractionDigits: 2});
@@ -95,7 +95,7 @@ function run() {
 
     let playing = false;
 
-    let audio = new Audio('songs/AtTheSpeedOfLight.mp3');
+    let audio = new Audio('songs/SomethingDifferent.mp3');
 
     function play() {
         audio.currentTime = level.song_offset + level.timeAt(renderer.camera.x);
@@ -160,12 +160,7 @@ window.onload = () => {
         const loader = document.getElementById('loader');
 
         console.log('Loading level...');
-        return GDLevel.parseAsync(renderer, acu, p => {
-            console.log(p);
-            requestAnimationFrame(() => {
-                loader.innerHTML = `${(p * 100).toLocaleString('en-US', {maximumFractionDigits: 1})}% Loaded`;
-            });
-        });
+        return GDLevel.loadFromFile("levels/White_Space.gmd", renderer);
     }).then((_level) => {
         level = _level;
         run();
