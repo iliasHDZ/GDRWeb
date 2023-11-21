@@ -1,6 +1,5 @@
-import { Vec2 } from "..";
 import { GDObject } from "../object/object";
-import { MoveTrigger, MoveTriggerValue } from "../object/trigger/move-trigger";
+import { MoveTrigger } from "../object/trigger/move-trigger";
 import { Trigger } from "../object/trigger/trigger";
 import { TriggerValue, ValueTrigger } from "../object/trigger/value-trigger";
 import { StopTriggerTrackList } from "./stop-trigger-track";
@@ -104,6 +103,18 @@ export class ValueTriggerTrack extends TriggerTrack {
         return lastExec;
     }
 
+    public lastExecutionLeftOf(x: number): ValueTriggerExecution | null {
+        let lastExec: ValueTriggerExecution | null = null;
+
+        for (let exec of this.executions) {
+            if (exec.trigger.spawnTriggered) continue;
+            if (exec.trigger.x >= x) break;
+            lastExec = exec;
+        }
+
+        return lastExec;
+    }
+
     public valueAt(time: number): TriggerValue {
         const lastExec = this.lastExecutionBefore(time);
         if (!lastExec)
@@ -133,20 +144,6 @@ export class ValueTriggerTrack extends TriggerTrack {
         
         return value;
     }
-
-    public layeredValueAt(time: number): TriggerValue {
-        let lastExec: ValueTriggerExecution = null;
-        for (let exec of this.executions) {
-            if (exec.time >= time) break;
-            if (time < exec.getEndTime())
-                lastExec = exec;
-        }
-
-        if (lastExec == null)
-            return this.startValue;
-        else
-            return lastExec.valueAt(this.layeredValueAt(lastExec.time), time);
-    }
 }
 
 export class ValueTriggerTrackList extends TriggerTrackList {
@@ -167,6 +164,13 @@ export class ValueTriggerTrackList extends TriggerTrackList {
 
     protected createTrack(): TriggerTrack {
         return new ValueTriggerTrack(this.defaultStartValue, this.eLevel);
+    }
+
+    public get(id: number): TriggerTrack | null {
+        const track = this.tracks[id];
+        if (!track) return null;
+
+        return track;
     }
 
     public createTrackWithStartValue(id: number, startValue: TriggerValue) {
@@ -233,14 +237,6 @@ export class ValueTriggerTrackList extends TriggerTrackList {
             return this.defaultStartValue;
 
         return track.lastValueAt(time);
-    }
-
-    public layeredValueAt(id: number, time: number): TriggerValue {
-        const track = this.tracks[id];
-        if (!track)
-            return this.defaultStartValue;
-
-        return track.layeredValueAt(time);
     }
 
     public combinedValueAt(id: number, time: number): TriggerValue {

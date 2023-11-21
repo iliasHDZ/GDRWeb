@@ -1,4 +1,4 @@
-import acu from './levels/acu';
+import boj from './levels/blade-of-justice';
 
 import {Renderer, GDLevel, WebGLContext, Vec2} from '../src/index';
 
@@ -160,7 +160,7 @@ window.onload = () => {
         const loader = document.getElementById('loader');
 
         console.log('Loading level...');
-        return GDLevel.loadFromFile("levels/HSVTests.gmd", renderer);
+        return GDLevel.parse(renderer, boj);//GDLevel.loadFromFile("levels/HSVTests.gmd", renderer);
     }).then((_level) => {
         level = _level;
         run();

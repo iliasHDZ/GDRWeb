@@ -14,7 +14,7 @@ import { BaseColor } from "./util/basecolor";
 import { PlayerColor } from "./util/playercolor";
 import { CopyColor } from "./util/copycolor";
 import { ObjectSprite, ObjectSpriteColor } from "./object/info/object-sprite";
-import { ValueTriggerTrackList } from "./track/value-trigger-track";
+import { ValueTriggerTrack, ValueTriggerTrackList } from "./track/value-trigger-track";
 import { GroupManager } from "./groups";
 import { HSVShift, hsv2rgb, rgb2hsv } from "./util/hsvshift";
 import { ObjectHSVManager } from "./objecthsv";
@@ -400,6 +400,25 @@ export class GDLevel {
         }, p => this.setProgress(3, p));
     }
 
+    isObjectBlending(object: GDObject): boolean {
+        const track = this.colorTrackList.get(object.baseCol);
+        if (track == null || !(track instanceof ValueTriggerTrack))
+            return false;
+
+        const exec = track.lastExecutionLeftOf(object.x);
+        if (exec != null) {
+            if (!(exec.trigger instanceof ColorTrigger))
+                return false;
+
+            return exec.trigger.blending;
+        }
+
+        if (!(track.startValue instanceof ColorTriggerValue))
+            return false;
+
+        return track.startValue.color.blending;
+    }
+
     init() {
         this.level_col = new ObjectBatch(this.renderer.ctx, this.renderer.sheet0, this.renderer.sheet2);
 
@@ -427,16 +446,19 @@ export class GDLevel {
         }
         this.gamemodePortals.sort((a, b) => a.x - b.x);
 
-        let data: [GDObject, number][] = [];
+        let data: [GDObject, number, boolean][] = [];
 
         let ind = 0;
 
-        for (let o of this.data)
-            data.push([o, ind++]);
+        for (let o of this.data) {
+            if (o.x == 0 && o.y == 0 && o.id == 1)
+                continue;
+            data.push([o, ind++, this.isObjectBlending(o)]);
+        }
 
         this.setProgress(8, 0);
         data.sort((a, b) => {
-            let r = GDObject.compareZOrder(a[0], b[0]);
+            let r = GDObject.compareZOrder(a[0], b[0], a[2], b[2]);
             if (r != 0) return r;
 
             return a[1] - b[1];

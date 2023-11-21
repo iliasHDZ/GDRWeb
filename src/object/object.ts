@@ -146,8 +146,11 @@ export class GDObject {
         return o;
     }*/
 
-    static compareZOrder(o1: GDObject, o2: GDObject) {
+    static compareZOrder(o1: GDObject, o2: GDObject, ob1: boolean = false, ob2: boolean = false) {
         if (o1.zlayer != o2.zlayer) return o1.zlayer - o2.zlayer;
+
+        if (ob1 != ob2)
+            return +ob2 - +ob1;
 
         return o1.zorder - o2.zorder;
     }
