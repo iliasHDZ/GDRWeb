@@ -1,10 +1,9 @@
 import { resolve } from 'path';
-import glsl from 'vite-plugin-glsl';
 import dts from 'vite-plugin-dts';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-    plugins: [dts(), glsl()],
+    plugins: [dts()],
     server: {
         open: '/test/index.html',
     },

@@ -20,13 +20,13 @@ declare const QUAD_VERT_SOURCE: string;
 declare const QUAD_FRAG_SOURCE: string;
 
 // @ts-ignore
-import VERT_SOURCE from "./webgl2/shaders/objects.vert";
+import VERT_SOURCE from "./webgl2/shaders/objects.vert?raw";
 // @ts-ignore
-import FRAG_SOURCE from "./webgl2/shaders/objects.frag";
+import FRAG_SOURCE from "./webgl2/shaders/objects.frag?raw";
 // @ts-ignore
-import QUAD_VERT_SOURCE from "./webgl2/shaders/quad.vert";
+import QUAD_VERT_SOURCE from "./webgl2/shaders/quad.vert?raw";
 // @ts-ignore
-import QUAD_FRAG_SOURCE from "./webgl2/shaders/quad.frag";
+import QUAD_FRAG_SOURCE from "./webgl2/shaders/quad.frag?raw";
 
 // Changing FLOATs to SHORTs; 411.5 KiB -> 320 KiB
 const attributes = {
