@@ -160,7 +160,7 @@ window.onload = () => {
         const loader = document.getElementById('loader');
 
         console.log('Loading level...');
-        return GDLevel.loadFromFile("levels/White_Space.gmd", renderer);
+        return GDLevel.loadFromFile("levels/HSVTests.gmd", renderer);
     }).then((_level) => {
         level = _level;
         run();

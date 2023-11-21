@@ -1,10 +1,11 @@
 {
   "name": "gdrweb",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Geometry Dash Level Rendering Engine for the browser",
   "main": "dist/gdrweb.umd.js",
   "module": "dist/gdrweb.mjs",
   "types": "dist/src/index.d.js",
+  "type": "module",
   "files": [
     "dist"
   ],
@@ -24,7 +25,8 @@
     "@types/pako": "^2.0.3",
     "typescript": "^5.2.2",
     "vite": "^4.5.0",
-    "vite-plugin-dts": "^3.6.3"
+    "vite-plugin-dts": "^3.6.3",
+    "vite-plugin-glsl": "^1.1.2"
   },
   "dependencies": {
     "pako": "^2.1.0"

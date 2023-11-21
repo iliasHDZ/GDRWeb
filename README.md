@@ -89,3 +89,6 @@ npm run dev
 Then open the localhost link given by the command.
 You can now add changes to the engine and the page
 should then automatically refresh.
+
+# Credits
+- [Opstic](https://github.com/opstic) & [Maxnut](https://github.com/maxnut): object.json
