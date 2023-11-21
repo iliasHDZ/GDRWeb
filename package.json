@@ -1,6 +1,6 @@
 {
   "name": "gdrweb",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "Geometry Dash Level Rendering Engine for the browser",
   "main": "dist/gdrweb.umd.js",
   "module": "dist/gdrweb.mjs",
