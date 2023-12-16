@@ -101,19 +101,4 @@ export abstract class TriggerTrackList {
 
         this.insertTriggerById(id, trigger, time);
     }
-
-    public loadAllNonSpawnTriggers(idFunc: (trigger: Trigger) => number | null, progFunc: (perc: number) => void | null = null) {
-        for (let obj of this.level.getObjects()) {
-            if (!(obj && obj instanceof Trigger))
-                continue;
-
-            if (obj.spawnTriggered || obj.touchTriggered)
-                continue;
-
-            if (idFunc(obj) == null)
-                continue;
-
-            this.insertTrigger(obj, this.level.timeAt(obj.x));
-        }
-    }
 }

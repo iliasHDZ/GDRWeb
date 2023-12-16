@@ -27,7 +27,7 @@ export class RotateTrigger extends TransformTrigger {
     }
 
     public rotationAfterDelta(deltaTime: number, _1: number, _2: TransformManager): number {
-        return this.getChange(deltaTime) * this.getAngle();
+        return 0;//this.getChange(deltaTime) * this.getAngle();
     }
 
     static isOfType(id: number): boolean {

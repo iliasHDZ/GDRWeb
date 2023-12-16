@@ -205,9 +205,7 @@ export class Renderer {
         this.ctx.fillRect(new Vec2(this.camera.x, -1), new Vec2(camSize.x, 2), lineColor);
     }
 
-    render(level: Level, options: RenderOptions = { hideTriggers: false }): Profile {
-        level.profiler.start("Rendering");
-
+    render(level: Level, options: RenderOptions = { hideTriggers: false }) {
         const playerX = this.camera.x;// - 75;
         const currentTime = level.timeAt(playerX);
 
@@ -216,7 +214,6 @@ export class Renderer {
         this.ctx.setSize(this.ctx.canvas.width, this.ctx.canvas.height);
         this.ctx.setViewMatrix(this.camera.getMatrix());
 
-        level.profiler.start("Color Channel Evaluation");
         const bg = this.backgrounds[level.backgroundId == 0 ? 1 : level.backgroundId];
         const [bgcolor, _] = level.colorAtTime(1000, currentTime);
         if (bg && bg.loaded) {
@@ -228,12 +225,9 @@ export class Renderer {
         
         for (let c of level.valid_channels)
             this.ctx.setColorChannel(c, ...level.colorAtTime(c, currentTime));
-        level.profiler.end();
-        
-        level.profiler.start("Group State Evaluation");
+
         for (let i = 1; i < level.groupManager.getTotalGroupCount(); i++)
             this.ctx.setGroupState(i, level.groupManager.getGroupStateAt(i, currentTime));
-        level.profiler.end();
 
         for (let i = 0; i < level.transformManager.getTotalTransformCount(); i++)
             this.ctx.setGroupTransform(i, level.transformManager.valueAt(i, currentTime));
@@ -251,12 +245,8 @@ export class Renderer {
 
         const gfx = level.fetchLevelGraphics(this);
 
-        level.profiler.start("Render Call");
         this.ctx.render(gfx.mainBatch, ctxopts, this.sheet0, this.sheet2);
         this.renderGround(level, currentTime);
-        level.profiler.end();
-
-        return level.profiler.end();
     }
 
     testBatchInsertion(): boolean {

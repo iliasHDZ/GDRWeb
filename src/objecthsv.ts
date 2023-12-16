@@ -1,19 +1,14 @@
+import { Level } from "./level";
 import { GameObject } from "./object/object";
 import { HSVShift } from "./util/hsvshift";
-
-interface GDLevel {
-    getObjects(): GameObject[];
-    timeAt(x: number): number;
-    setProgress(step: number, percent: number): void;
-}
 
 export class ObjectHSVManager {
     objectHSVs: { [id: number]: HSVShift } = {};
     lastObjectHSVId = 1;
 
-    level: GDLevel;
+    level: Level;
 
-    constructor(level: GDLevel) {
+    constructor(level: Level) {
         this.level = level;
     }
 
@@ -49,14 +44,7 @@ export class ObjectHSVManager {
     }
 
     loadObjectHSVs() {
-        const count = this.level.getObjects().length;
-        let i = 0;
-
         for (let obj of this.level.getObjects()) {
-            if (i % 1000 == 0)
-                this.level.setProgress(7, i / count);
-            i++;
-
             if (obj.baseHSVShift != null)
                 obj.baseHSVShiftId = this.registerHSV(obj.baseHSVShift);
             

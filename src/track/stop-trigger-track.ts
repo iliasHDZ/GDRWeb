@@ -53,18 +53,6 @@ export class StopTriggerTrackList extends TriggerTrackList {
         return new StopTriggerTrack(this.level);
     }
 
-    public loadAllTriggers() {
-        this.loadAllNonSpawnTriggers((trigger: StopTrigger) => {
-            if (!(trigger instanceof StopTrigger))
-                return null;
-
-            if (trigger.targetGroupId == 0)
-                return null;
-
-            return trigger.targetGroupId;
-        });
-    }
-
     public nextExecutionAfter(id: number, time: number): StopTriggerExecution | null {
         if (!this.tracks[id])
             return null;

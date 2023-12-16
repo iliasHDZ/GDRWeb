@@ -1,9 +1,5 @@
-import { GameObject } from "./object/object";
 import { AlphaTrigger, AlphaTriggerValue } from "./object/trigger/alpha-trigger";
 import { ToggleTrigger, ToggleTriggerValue } from "./object/trigger/toggle-trigger";
-import { ValueTrigger } from "./object/trigger/value-trigger";
-import { Profiler } from "./profiler";
-import { StopTriggerTrackList } from "./track/stop-trigger-track";
 import { ValueTriggerTrackList } from "./track/value-trigger-track";
 import { PulseTargetType, PulseTrigger, PulseTriggerValue } from "./object/trigger/pulse-trigger";
 import { PulseList } from "./pulse/pulse-list";
@@ -129,20 +125,16 @@ export class GroupManager {
     }
 
     getAlphaValueAtTime(groupId: number, time: number): number {
-        this.level.profiler.start("Alpha Trigger Evaluation");
         const value = this.alphaTrackList.valueAt(groupId, time);
         let res = 1;
         if (value instanceof AlphaTriggerValue)
             res = value.alpha;
-        this.level.profiler.end();
 
         return res;
     }
 
     getActiveValueAtTime(groupId: number, time: number): boolean {
-        this.level.profiler.start("Toggle Trigger Evaluation");
         const value = (this.toggleTrackList.lastValueAt(groupId, time) as ToggleTriggerValue).active;
-        this.level.profiler.end();
         return value;
     }
 
@@ -167,14 +159,7 @@ export class GroupManager {
     }
 
     loadGroups() {
-        const count = this.level.getObjects().length;
-        let i = 0;
-
         for (let obj of this.level.getObjects()) {
-            if (i % 1000 == 0)
-                this.level.setProgress(4, i / count);
-            i++;
-
             if (obj.groups.length == 0)
                 continue;
 

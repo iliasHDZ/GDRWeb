@@ -200,40 +200,6 @@ export class ValueTriggerTrackList extends TriggerTrackList {
         this.tracks[id] = new ValueTriggerTrack(startValue, this.level);
     }
 
-    public loadAllColorTriggers(progFunc: (perc: number) => void | null = null) {
-        this.loadAllNonSpawnTriggers((trigger: ValueTrigger) => {
-            if (!(trigger instanceof ColorTrigger))
-                return null;
-
-            return trigger.color;
-        }, progFunc);
-    }
-    
-    // FIXME: Duplicate code with move triggers and toggle triggers
-    public loadAllAlphaTriggers(progFunc: (perc: number) => void | null = null) {
-        this.loadAllNonSpawnTriggers((trigger: ValueTrigger) => {
-            if (!(trigger instanceof AlphaTrigger))
-                return null;
-
-            if (trigger.targetGroupId == 0)
-                return null;
-
-            return trigger.targetGroupId;
-        }, progFunc);
-    }
-
-    public loadAllToggleTriggers(progFunc: (perc: number) => void | null = null) {
-        this.loadAllNonSpawnTriggers((trigger: ValueTrigger) => {
-            if (!(trigger instanceof ToggleTrigger))
-                return null;
-
-            if (trigger.targetGroupId == 0)
-                return null;
-
-            return trigger.targetGroupId;
-        }, progFunc);
-    }
-
     public valueAt(id: number, time: number): TriggerValue {
         const track = this.tracks[id];
         if (!track)

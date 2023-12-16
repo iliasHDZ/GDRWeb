@@ -54,8 +54,6 @@ export class Level {
     backgroundId: number = 0;
     groundId: number = 0;
 
-    loadProgEvent: (percent: number) => void | null = null;
-
     valid_channels: number[];
 
     validColorChannels: Set<number> = new Set<number>();
@@ -72,8 +70,6 @@ export class Level {
     
     gamemodePortals: GameObject[];
 
-    profiler: Profiler;
-
     constructor() {
         this.speedManager = new SpeedManager();
         this.colorManager = new ColorManager(this);
@@ -82,13 +78,6 @@ export class Level {
         this.objectHSVManager = new ObjectHSVManager(this);
         
         this.stopTrackList = new StopTriggerTrackList(this);
-
-        this.profiler = new Profiler();
-    }
-
-    setProgress(step: number, percent: number) {
-        if (this.loadProgEvent != null)
-            this.loadProgEvent(step / LOADING_STEPS_COUNT + percent / LOADING_STEPS_COUNT);
     }
 
     static getLevelSpeedEnum(speed: number) {
@@ -131,12 +120,8 @@ export class Level {
         return obj;
     }
 
-    static parse(data: string, loadProg: (percent: number) => void | null = null): Level {
+    static parse(data: string): Level {
         let level = new Level();
-        if (loadProg != null)
-            level.loadProgEvent = loadProg;
-
-        level.setProgress(0, 0);
 
         let split = data.split(';');
 
@@ -153,17 +138,14 @@ export class Level {
             
             if (obj != null)
                 level.insertObject(obj);
-
-            if (i % 1000 == 1)
-                level.setProgress(0, i / split.length);
         }
 
         level.init();
         return level;
     }
 
-    static async parseAsync(data: string, loadProg: (percent: number) => void | null = null): Promise<Level> {
-        return this.parse(data, loadProg);
+    static async parseAsync(data: string): Promise<Level> {
+        return this.parse(data);
     }
 
     static fromBase64String(data: string): Level {
@@ -303,8 +285,6 @@ export class Level {
     }
 
     init() {
-        this.setProgress(1, 0);
-
         this.groupManager.loadGroups();
         this.groupManager.compressLargeGroupCombinations(4);
 
@@ -330,7 +310,6 @@ export class Level {
             data.push([o, ind++, this.colorManager.isObjectBlending(o)]);
         }
 
-        this.setProgress(8, 0);
         data.sort((a, b) => {
             let r = GameObject.compareZOrder(a[0], b[0], a[2], b[2]);
             if (r != 0) return r;

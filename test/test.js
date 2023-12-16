@@ -29,14 +29,14 @@ window.onload = async () => {
     await renderer.loadBackgrounds(name => `../assets/backgrounds/${name}.png`);
     await renderer.loadGrounds(name => `../assets/grounds/${name}.png`);
 
-    const level = gdr.Level.parse(acu);
-
     /*const level = renderer.testSpeedPortalInsertion();
     if (!level)
         return;*/
 
     console.log('Loading level...');
     //const level = await GDLevel.parse(acu);
+
+    const level = await gdr.Level.loadFromFile("levels/White_Space.gmd");
 
     console.log('Loading complete...');
     
@@ -50,9 +50,9 @@ window.onload = async () => {
     let my = 0;
 
     const render = () => {
-        const profile = renderer.render(level, { hideTriggers: false });
+        renderer.render(level, { hideTriggers: true });
 
-        const fps = Math.floor(1000 / profile.duration);
+        /*const fps = Math.floor(1000 / profile.duration);
         const renderdur = profile.duration.toLocaleString('en-US', {maximumFractionDigits: 2});
 
         document.getElementById('fps').innerHTML = `FPS: ${fps} (Render duration: ${renderdur}ms)<br>`;
@@ -60,7 +60,7 @@ window.onload = async () => {
         const profileElem = document.getElementById('profile');
         profileElem.innerHTML = "";
 
-        profileElem.appendChild(profile.toHTMLElement());
+        profileElem.appendChild(profile.toHTMLElement());*/
     }
 
     renderer.on('load', () => {
