@@ -5,7 +5,7 @@ import { BufferObject } from "./buffer";
 import { BufferArray } from "./buffer-array";
 import { ShaderProgram } from "./program";
 import { Vec2 } from "../../util/vec2";
-import { GDLevel } from "../..";
+import { Level } from "../..";
 
 const attributes = {
     ["aPos"]: ArrayType.FLOAT2,
@@ -138,7 +138,7 @@ export class WebGLObjectBatch extends BufferedObjectBatch {
     gl: WebGL2RenderingContext;
     program: ShaderProgram;
 
-    constructor(level: GDLevel, gl: WebGL2RenderingContext, program: ShaderProgram) {
+    constructor(level: Level, gl: WebGL2RenderingContext, program: ShaderProgram) {
         super(level);
         
         this.gl = gl;

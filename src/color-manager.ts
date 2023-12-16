@@ -1,4 +1,4 @@
-import { GDLevel } from ".";
+import { Level } from ".";
 import { ColorChannel } from "./level";
 import { GameObject } from "./object/object";
 import { ColorTrigger, ColorTriggerValue } from "./object/trigger/color-trigger";
@@ -17,9 +17,9 @@ export class ColorManager {
     private colorTrackList: ValueTriggerTrackList;
     private pulseTrackList: ValueTriggerTrackList;
 
-    private level: GDLevel;
+    private level: Level;
 
-    constructor(level: GDLevel) {
+    constructor(level: Level) {
         this.level = level;
 
         this.colorTrackList = new ValueTriggerTrackList(level, ColorTriggerValue.default());

@@ -1,4 +1,4 @@
-import { GDLevel } from "../..";
+import { Level } from "../..";
 import { TriggerTrack } from "../../track/trigger-track";
 import { GameObject } from "../object";
 
@@ -25,7 +25,7 @@ export abstract class Trigger extends GameObject {
             this.tracks.splice(idx, 1);
     }
 
-    onInsert(level: GDLevel): void {
+    onInsert(level: Level): void {
         if (this.spawnTriggered || this.touchTriggered)
             return;
 
@@ -35,7 +35,7 @@ export abstract class Trigger extends GameObject {
         list.insertTrigger(this, level.timeAt(this.x));
     }
     
-    onRemove(_: GDLevel): void {
+    onRemove(_: Level): void {
         for (let track of this.tracks) {
             track.removeTrigger(this);
         }

@@ -1,4 +1,4 @@
-import { GDLevel } from "..";
+import { Level } from "..";
 import { GDObjectsInfo } from "../object/info/object-info";
 import { GameObject } from "../object/object";
 import { TextureObject } from "../render/texture-object";
@@ -119,9 +119,9 @@ export abstract class BufferedObjectBatch implements ObjectBatch {
 
     buffer: BatchBuffer | null = null;
 
-    level: GDLevel;
+    level: Level;
 
-    constructor(level: GDLevel) {
+    constructor(level: Level) {
         this.level = level;
         this.instances = [];
     }

@@ -1,14 +1,14 @@
-import { GDLevel, Renderer } from ".";
+import { Level, Renderer } from ".";
 import { ObjectBatch } from "./context/object-batch";
 import { GameObject } from "./object/object";
 
 export class LevelGraphics {
-    public level: GDLevel;
+    public level: Level;
     public renderer: Renderer;
 
     mainBatch: ObjectBatch;
 
-    constructor(level: GDLevel, renderer: Renderer) {
+    constructor(level: Level, renderer: Renderer) {
         this.level = level;
         this.renderer = renderer;
 

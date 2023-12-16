@@ -1,4 +1,4 @@
-import { GDLevel } from "../..";
+import { Level } from "../..";
 import { GameObject } from "../object";
 import { Trigger } from "./trigger";
 
@@ -11,12 +11,12 @@ export class StopTrigger extends Trigger {
         this.targetGroupId = GameObject.parse(data[51], 'number', 0);
     }
 
-    onInsert(level: GDLevel): void {
+    onInsert(level: Level): void {
         super.onInsert(level);
         level.updateStopActions(this.targetGroupId);
     }
 
-    onRemove(level: GDLevel): void {
+    onRemove(level: Level): void {
         super.onRemove(level);
         level.updateStopActions(this.targetGroupId);
     }
