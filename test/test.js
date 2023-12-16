@@ -1,13 +1,43 @@
-import boj from './levels/blade-of-justice';
+import acu from './levels/acu';
 
-import {Renderer, GDLevel, WebGLContext, Vec2} from '../src/index';
+import * as gdr from '../src/index';
+import { GameObject } from '../src/object/object';
 
 let canvas;
 
-let level;
-let renderer;
+function randInt(min, max) {
+    min = Math.ceil(min);
+    max = Math.floor(max);
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+}
 
-function run() {
+window.onload = async () => {
+    canvas = document.getElementById('canvas');
+    await gdr.Renderer.initTextureInfo(
+        "../assets/GJ_GameSheet-hd.plist",
+        "../assets/GJ_GameSheet02-hd.plist"
+    );
+
+    let renderer = new gdr.Renderer(
+        new gdr.WebGLContext(canvas),
+        "../assets/GJ_GameSheet-hd.png",
+        "../assets/GJ_GameSheet02-hd.png"
+    );
+
+    console.log(renderer.testBatchRemoval());
+
+    await renderer.loadBackgrounds(name => `../assets/backgrounds/${name}.png`);
+    await renderer.loadGrounds(name => `../assets/grounds/${name}.png`);
+
+    const level = gdr.Level.parse(acu);
+
+    /*const level = renderer.testSpeedPortalInsertion();
+    if (!level)
+        return;*/
+
+    console.log('Loading level...');
+    //const level = await GDLevel.parse(acu);
+
     console.log('Loading complete...');
     
     renderer.camera.x = 0;
@@ -51,7 +81,7 @@ function run() {
         mx = e.clientX;
         my = e.clientY;
 
-        const pos = renderer.camera.screenToWorldPos(new Vec2(mx, my));
+        const pos = renderer.camera.screenToWorldPos(new gdr.Vec2(mx, my));
         document.getElementById('mouse').innerHTML = `X: ${Math.floor(pos.x)}, Y: ${Math.floor(pos.y)}`;
     }
 
@@ -95,7 +125,7 @@ function run() {
 
     let playing = false;
 
-    let audio = new Audio('songs/SomethingDifferent.mp3');
+    let audio = new Audio('songs/Epilogue.mp3');
 
     function play() {
         audio.currentTime = level.song_offset + level.timeAt(renderer.camera.x);
@@ -128,6 +158,31 @@ function run() {
                 stop();
             else
                 play();
+        } else if (e.code == "KeyO") {
+            const objects = GameObject.generateRandomObjects(50);
+
+            for (let obj of objects) {
+                obj.x = renderer.camera.x + randInt(-200, 200);
+                obj.y = renderer.camera.y + randInt(-200, 200);
+            }
+
+            level.insertObjects(objects);
+            render();
+        } else if (e.code == "KeyR") {
+            const objects = level.getObjects();
+            let rem = [];
+
+            for (let obj of objects) {
+                if (
+                    obj.x > renderer.camera.x - 100 && obj.x < renderer.camera.x + 100 &&
+                    obj.y > renderer.camera.y - 100 && obj.y < renderer.camera.y + 100
+                ) {
+                    rem.push(obj);
+                }
+            }
+
+            level.removeObjects(rem);
+            render();
         }
     }
 
@@ -139,32 +194,4 @@ function run() {
 
     window.onresize = resize;
     resize();
-}
-
-window.onload = () => {
-    canvas = document.getElementById('canvas');
-    Renderer.initTextureInfo(
-        "../assets/GJ_GameSheet-hd.plist",
-        "../assets/GJ_GameSheet02-hd.plist"
-    ).then(() => {
-        renderer = new Renderer(
-            new WebGLContext(canvas),
-            "../assets/GJ_GameSheet-hd.png",
-            "../assets/GJ_GameSheet02-hd.png"
-        );
-
-        return renderer.loadBackgrounds(name => `../assets/backgrounds/${name}.png`);
-    }).then(() => {
-        return renderer.loadGrounds(name => `../assets/grounds/${name}.png`);
-    }).then(() => {
-        const loader = document.getElementById('loader');
-
-        console.log('Loading level...');
-        return GDLevel.parse(renderer, boj);//GDLevel.loadFromFile("levels/HSVTests.gmd", renderer);
-    }).then((_level) => {
-        level = _level;
-        run();
-    });
-
-    //renderer.render(level);
 }

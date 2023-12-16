@@ -1,10 +1,12 @@
 #version 300 es
 
 in vec2 aPos;
+in vec2 aObjPos;
 in vec2 aTex;
 in vec4 aGroups;
 in float aHsv;
 in vec4 aSCp;
+in float aTransform;
 
 in float aFlags;
 in float aCol;
@@ -26,11 +28,20 @@ uniform sampler2D uColorInfoTexture;
 uniform sampler2D uGroupStateTexture;
 uniform sampler2D uObjectHSVTexture;
 uniform sampler2D uPulseTexture;
+uniform sampler2D uTransformTexture;
 
 struct GroupState {
     float opacity;
     vec2 offset;
     vec2 pulseSel;
+};
+
+struct GroupTransform {
+    vec2 offset;
+    vec2 right;
+    vec2 up;
+    vec2 objRight;
+    vec2 objUp;
 };
 
 struct HSVShift {
@@ -51,8 +62,10 @@ vec4 getInfoTexPix(int i, int tex) {
         size = vec2(textureSize(uGroupStateTexture, 0));
     else if (tex == 2)
         size = vec2(textureSize(uObjectHSVTexture, 0));
-    else
+    else if (tex == 3)
         size = vec2(textureSize(uPulseTexture, 0));
+    else
+        size = vec2(textureSize(uTransformTexture, 0));
 
     vec2 texCoords = vec2(mod(float(i), size.x) + 0.5, floor(float(i) / size.x) + 0.5) / size;
     if (tex == 0)
@@ -61,8 +74,10 @@ vec4 getInfoTexPix(int i, int tex) {
         return texture(uGroupStateTexture, texCoords);
     else if (tex == 2)
         return texture(uObjectHSVTexture, texCoords);
-    else
+    else if (tex == 3)
         return texture(uPulseTexture, texCoords);
+    else
+        return texture(uTransformTexture, texCoords);
 }
 
 GroupState combineGroupStates(GroupState s1, GroupState s2) {
@@ -138,8 +153,19 @@ GroupState getGroupStateFromGroups(vec4 groups) {
     return current;
 }
 
-// const uns = v => Math.abs(v) + 128 * +(v < 0)
-// const dens = a => (a >= 128) ? -(a % 128) : (a % 128)
+GroupTransform getGroupTransform(int id) {
+    vec4 a = getInfoTexPix(id * 3, 4);
+    vec4 b = getInfoTexPix(id * 3 + 1, 4);
+    vec4 c = getInfoTexPix(id * 3 + 2, 4);
+
+    GroupTransform res;
+    res.offset = a.xy;
+    res.right  = b.xy;
+    res.up     = b.zw;
+    res.objRight = c.xy;
+    res.objUp    = c.zw;
+    return res;
+}
 
 float pixFloatToSignedFloat(float a) {
     a *= 255.0;
@@ -266,6 +292,7 @@ void main() {
     oBlending = isChannelBlending(int(aCol)) ? 1 : 0;
 
     GroupState state = getGroupStateFromGroups(aGroups);
+    GroupTransform transform = getGroupTransform(int(aTransform));
 
     oColor = applyPulseSelToColor(oColor, pulseSels[0]);
     oColor = applyPulseSelToColor(oColor, pulseSels[1]);
@@ -279,9 +306,13 @@ void main() {
         oColor = shiftColor(oColor, shift);
     }
 
-    vec2 position = aPos;
+    vec2 tObjPos = transform.right * aObjPos.x + transform.up * aObjPos.y + transform.offset;
 
-    position += state.offset;
+    vec2 vertRel = aPos - aObjPos;
+
+    vertRel = transform.objRight * vertRel.x + transform.objUp * vertRel.y;
+
+    vec2 position = tObjPos + vertRel;
 
     oFlags = int(aFlags);
 

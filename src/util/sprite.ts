@@ -24,6 +24,17 @@ export class SpriteCrop {
         return new Vec2(this.w, this.h);
     }
 
+    equals(b: SpriteCrop): boolean {
+        const a = this;
+        return (
+            a.x  == b.x &&
+            a.y  == b.y &&
+            a.w  == b.w &&
+            a.h  == b.h &&
+            a.id == b.id
+        );
+    }
+
     static fromObjectData(data: any): SpriteCrop {
         return new SpriteCrop(data.x, data.y, data.w, data.h);
     }
@@ -52,5 +63,9 @@ export class SpriteCropInfo {
         this.size = size;
         this.offset = offset;
         this.rotated = rotated;
+    }
+
+    equals(sprite: SpriteCropInfo): boolean {
+        return this.name == sprite.name;
     }
 }

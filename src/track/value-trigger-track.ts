@@ -1,4 +1,4 @@
-import { GDObject } from "../object/object";
+import { GameObject } from "../object/object";
 import { MoveTrigger } from "../object/trigger/move-trigger";
 import { Trigger } from "../object/trigger/trigger";
 import { TriggerValue, ValueTrigger } from "../object/trigger/value-trigger";
@@ -8,20 +8,36 @@ import { TriggerExecution, TriggerTrack, TriggerTrackList } from "./trigger-trac
 import { ColorTrigger } from "../object/trigger/color-trigger";
 import { AlphaTrigger } from "../object/trigger/alpha-trigger";
 import { ToggleTrigger } from "../object/trigger/toggle-trigger";
+import { Level } from "../level";
 
 class ValueTriggerExecution extends TriggerExecution {
     track: ValueTriggerTrack;
-    stoppedAt: number | null;
+    stoppedAt: number | null = null;
     valueTrigger: ValueTrigger;
     cachedStartValue: TriggerValue | null = null;
 
-    constructor(trigger: ValueTrigger, time: number, track: ValueTriggerTrack, stoppedAt: number | null = null) {
+    level: Level;
+
+    constructor(trigger: ValueTrigger, time: number, level: Level, track: ValueTriggerTrack) {
         super(trigger, time);
 
         this.valueTrigger = trigger;
+        this.track = track;
 
-        this.track     = track;
-        this.stoppedAt = stoppedAt;
+        this.level = level;
+
+        this.updateStopAction();
+    }
+
+    public updateStopAction(id: number | null = null) {
+        if (id != null && !this.trigger.groups.includes(id))
+            return;
+
+        this.stoppedAt = this.level.stopTrackList.triggerStoppedAt(this.trigger, this.time);
+    }
+
+    clearCache() {
+        this.cachedStartValue = null;
     }
 
     getStartValue(): TriggerValue {
@@ -46,25 +62,19 @@ class ValueTriggerExecution extends TriggerExecution {
     }
 }
 
-// circular dependencies 😠😠😠
-interface GDLevel {
-    getObjects(): GDObject[];
-    timeAt(x: number): number;
-    posAt(x: number): number;
-    stopTrackList: StopTriggerTrackList;
-}
-
 export class ValueTriggerTrack extends TriggerTrack {
     public executions: ValueTriggerExecution[];
     public startValue: TriggerValue;
 
-    public sLevel: GDLevel;
-
-    constructor(startValue: TriggerValue, level: GDLevel) {
-        super(level);
+    constructor(startValue: TriggerValue, level: Level, trackId?: number, trackList?: ValueTriggerTrackList) {
+        super(level, trackId, trackList);
         this.startValue = startValue;
         this.executions = [];
-        this.sLevel = level;
+    }
+
+    public updateStopActions(id: number | null = null) {
+        for (let exec of this.executions)
+            exec.updateStopAction(id);
     }
 
     public setStartValue(value: TriggerValue) {
@@ -79,15 +89,25 @@ export class ValueTriggerTrack extends TriggerTrack {
         if (!(trigger instanceof ValueTrigger))
             return null;
 
-        const stoppedAt = this.sLevel.stopTrackList.triggerStoppedAt(trigger, time);
+        return new ValueTriggerExecution(trigger, time, this.level, this);
+    }
 
-        return new ValueTriggerExecution(trigger, time, this, stoppedAt);
+    protected clearCachedValuesAt(idx: number) {
+        for (; idx < this.executions.length; idx++)
+            this.executions[idx].clearCache();
     }
 
     public insertTrigger(trigger: Trigger, time: number): number {
         const idx = super.insertTrigger(trigger, time);
-        for (let i = idx; i < this.executions.length; i++)
-            this.executions[i].cachedStartValue = null;
+        this.clearCachedValuesAt(idx);
+
+        return idx;
+    }
+
+    public removeTrigger(trigger: Trigger): number | null {
+        const idx = super.removeTrigger(trigger);
+        if (idx != null)
+            this.clearCachedValuesAt(idx);
 
         return idx;
     }
@@ -150,23 +170,26 @@ export class ValueTriggerTrackList extends TriggerTrackList {
     public tracks: { [id: number]: ValueTriggerTrack } = {};
     
     defaultStartValue: TriggerValue;
-    eLevel: GDLevel;
 
-    constructor(level: GDLevel, defaultStartValue: TriggerValue) {
+    constructor(level: Level, defaultStartValue: TriggerValue) {
         super(level);
         this.defaultStartValue = defaultStartValue;
-        this.eLevel = level;
     }
 
     protected getTracks(): { [id: number]: TriggerTrack } {
         return this.tracks;
     }
 
-    protected createTrack(): TriggerTrack {
-        return new ValueTriggerTrack(this.defaultStartValue, this.eLevel);
+    protected createTrack(id: number): TriggerTrack {
+        return new ValueTriggerTrack(this.defaultStartValue, this.level, id, this);
     }
 
-    public get(id: number): TriggerTrack | null {
+    public updateStopActions(id: number | null = null) {
+        for (let track of Object.values(this.tracks))
+            track.updateStopActions(id);
+    }
+
+    public get(id: number): ValueTriggerTrack | null {
         const track = this.tracks[id];
         if (!track) return null;
 
@@ -174,7 +197,7 @@ export class ValueTriggerTrackList extends TriggerTrackList {
     }
 
     public createTrackWithStartValue(id: number, startValue: TriggerValue) {
-        this.tracks[id] = new ValueTriggerTrack(startValue, this.eLevel);
+        this.tracks[id] = new ValueTriggerTrack(startValue, this.level);
     }
 
     public loadAllColorTriggers(progFunc: (perc: number) => void | null = null) {
@@ -190,18 +213,6 @@ export class ValueTriggerTrackList extends TriggerTrackList {
     public loadAllAlphaTriggers(progFunc: (perc: number) => void | null = null) {
         this.loadAllNonSpawnTriggers((trigger: ValueTrigger) => {
             if (!(trigger instanceof AlphaTrigger))
-                return null;
-
-            if (trigger.targetGroupId == 0)
-                return null;
-
-            return trigger.targetGroupId;
-        }, progFunc);
-    }
-
-    public loadAllMoveTriggers(progFunc: (perc: number) => void | null = null) {
-        this.loadAllNonSpawnTriggers((trigger: ValueTrigger) => {
-            if (!(trigger instanceof MoveTrigger))
                 return null;
 
             if (trigger.targetGroupId == 0)

@@ -4,7 +4,7 @@ import { GDColor } from "../../util/gdcolor";
 import { HSVShift } from "../../util/hsvshift";
 import { MixedColor } from "../../util/mixedcolor";
 import { PlayerColor } from "../../util/playercolor";
-import { GDObject } from "../object";
+import { GameObject } from "../object";
 import { TriggerValue, ValueTrigger } from "./value-trigger";
 
 export class ColorTriggerValue extends TriggerValue {
@@ -42,20 +42,20 @@ export class ColorTrigger extends ValueTrigger {
     applyData(data: {}) {
         super.applyData(data);
 
-        this.r = GDObject.parse(data[7], 'number', 255);
-        this.g = GDObject.parse(data[8], 'number', 255);
-        this.b = GDObject.parse(data[9], 'number', 255);
+        this.r = GameObject.parse(data[7], 'number', 255);
+        this.g = GameObject.parse(data[8], 'number', 255);
+        this.b = GameObject.parse(data[9], 'number', 255);
 
-        this.duration = GDObject.parse(data[10], 'number', 0);
+        this.duration = GameObject.parse(data[10], 'number', 0);
 
-        this.blending = GDObject.parse(data[17], 'boolean', false);
-        this.opacity  = GDObject.parse(data[35], 'number', 1);
+        this.blending = GameObject.parse(data[17], 'boolean', false);
+        this.opacity  = GameObject.parse(data[35], 'number', 1);
 
-        this.plrcol1 = GDObject.parse(data[15], 'boolean', false);
-        this.plrcol2 = GDObject.parse(data[16], 'boolean', false);
+        this.plrcol1 = GameObject.parse(data[15], 'boolean', false);
+        this.plrcol2 = GameObject.parse(data[16], 'boolean', false);
 
-        this.copyId = GDObject.parse(data[50], 'number', 0);
-        this.copyOpacity  = GDObject.parse(data[60], 'boolean', false);
+        this.copyId = GameObject.parse(data[50], 'number', 0);
+        this.copyOpacity  = GameObject.parse(data[60], 'boolean', false);
         this.copyHsvShift = HSVShift.parse(data[49]);
 
         if (data[23])
@@ -77,6 +77,10 @@ export class ColorTrigger extends ValueTrigger {
 
             this.color = color;
         }
+    }
+
+    getTriggerTrackId(): number {
+        return this.color;
     }
 
     getColor(): GDColor {

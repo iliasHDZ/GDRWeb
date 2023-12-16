@@ -5,7 +5,7 @@ import { Trigger } from "./trigger";
     Read ValueTrigger for more info.
 */
 export class TriggerValue {
-    combineWith(value: TriggerValue): TriggerValue | null {
+    combineWith(_: TriggerValue): TriggerValue | null {
         return null;
     }
 }

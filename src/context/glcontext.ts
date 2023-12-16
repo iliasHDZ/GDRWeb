@@ -1,6 +1,6 @@
 import { ContextRenderOptions, RenderContext } from './context';
 import { Color } from './../util/color';
-import { ObjectBatch } from '../render/object-batch';
+import { ObjectBatch } from './object-batch';
 import { ShaderProgram } from './webgl2/program';
 import { BufferObject } from './webgl2/buffer';
 import { BufferArray } from './webgl2/buffer-array';
@@ -8,11 +8,14 @@ import { ArrayType, BufferArrayBuilder } from './webgl2/buffer-array-builder';
 import { Mat3 } from '../util/mat3';
 import { Vec2 } from '../util/vec2';
 import { SpriteCrop, SpriteCropInfo } from '../util/sprite';
-import { GroupState } from '../groups';
+import { GroupState } from '../group-manager';
 import { HSVShift } from '../util/hsvshift';
 import { Profiler } from '../profiler';
 import { TextureObject } from '../render/texture-object';
 import { PulseColorEntry, PulseHSVEntry } from '../pulse/pulse-entry';
+import { GroupTransform } from '../transform/group-transform';
+import { WebGLBatchBuffer, WebGLObjectBatch } from './webgl2/object-batch';
+import { Level } from '..';
 
 declare const VERT_SOURCE: string;
 declare const FRAG_SOURCE: string;
@@ -28,13 +31,13 @@ import QUAD_VERT_SOURCE from "./webgl2/shaders/quad.vert?raw";
 // @ts-ignore
 import QUAD_FRAG_SOURCE from "./webgl2/shaders/quad.frag?raw";
 
-// Changing FLOATs to SHORTs; 411.5 KiB -> 320 KiB
 const attributes = {
     ["aPos"]: ArrayType.FLOAT2,
+    ["aObjPos"]: ArrayType.FLOAT2,
     ["aCol"]: ArrayType.SHORT,
     ["aFlags"]: ArrayType.SHORT,
     ["aHsv"]: ArrayType.SHORT,
-    ["_0"]: ArrayType.SHORT,
+    ["aTransform"]: ArrayType.SHORT,
     ["aTex"]: ArrayType.FLOAT2,
     ["aGroups"]: ArrayType.SHORT4,
     ["aSCp"]: ArrayType.SHORT4
@@ -42,6 +45,7 @@ const attributes = {
 
 const GROUP_STATE_TEXTURE_WIDTH = 512;
 const FLOATS_PER_GROUP_STATE = 8;
+const FLOATS_PER_GROUP_TRANSFORM = 12;
 
 const OBJECT_HSV_TEXTURE_WIDTH = 256;
 const BYTES_PER_OBJECT_HSV = 4;
@@ -63,14 +67,17 @@ export class WebGLContext extends RenderContext {
 
     groupStates: { [id: number]: GroupState } = {};
     objectHSVs: { [id: number]: HSVShift } = {};
+    groupTransforms: { [id: number]: GroupTransform } = {};
 
     lastGroupId: number = 0;
     lastHSVId: number = 0;
+    lastTransformId: number = 0;
 
     colorInfoTexture: WebGLTexture;
     groupStateTexture: WebGLTexture;
     objectHSVTexture: WebGLTexture;
     pulseTexture: WebGLTexture;
+    transformTexture: WebGLTexture;
 
     pulseTextureSelections: { [id: number]: [number, number] } = {};
 
@@ -139,6 +146,7 @@ export class WebGLContext extends RenderContext {
         this.groupStateTexture = this.createInfoTexture();
         this.objectHSVTexture  = this.createInfoTexture();
         this.pulseTexture      = this.createInfoTexture();
+        this.transformTexture  = this.createInfoTexture();
 
         this.quadShader = new ShaderProgram(gl);
         this.quadShader.loadShader(gl.VERTEX_SHADER,   QUAD_VERT_SOURCE);
@@ -148,7 +156,7 @@ export class WebGLContext extends RenderContext {
         this.quad = new BufferArray(gl);
         this.quad.add(
             this.quadShader.attrib('aPos'),
-            new BufferObject(gl, QUAD_VERTICES),
+            BufferObject.fromData(gl, QUAD_VERTICES),
             2,
             0,
             2 * 4
@@ -171,6 +179,13 @@ export class WebGLContext extends RenderContext {
 
         if (groupId > this.lastGroupId)
             this.lastGroupId = groupId;
+    }
+
+    setGroupTransform(transformId: number, state: GroupTransform) {
+        this.groupTransforms[transformId] = state;
+
+        if (transformId > this.lastTransformId)
+            this.lastTransformId = transformId;
     }
 
     setObjectHSV(hsvId: number, hsv: HSVShift) {
@@ -263,8 +278,8 @@ export class WebGLContext extends RenderContext {
             const pulseSelection = this.pulseTextureSelections[+id];
 
             buffer[+id * fpgs + 0] = state.active ? state.opacity : 0;
-            buffer[+id * fpgs + 1] = state.offset.x;
-            buffer[+id * fpgs + 2] = state.offset.y;
+            buffer[+id * fpgs + 1] = 0;
+            buffer[+id * fpgs + 2] = 0;
             buffer[+id * fpgs + 3] = 0;
             buffer[+id * fpgs + 4] = pulseSelection[0];
             buffer[+id * fpgs + 5] = pulseSelection[1];
@@ -273,6 +288,33 @@ export class WebGLContext extends RenderContext {
         }
 
         this.updateFloatInfoTexture(buffer, this.groupStateTexture, GROUP_STATE_TEXTURE_WIDTH);
+    }
+
+    updateGroupTransformTexture() {
+        const fpgt = FLOATS_PER_GROUP_TRANSFORM;
+
+        const size = Math.ceil(fpgt / 4) * (this.lastTransformId + 1);
+        let buffer = new Float32Array(size * 4);
+
+        for (let i = 0; i < buffer.length; i++)
+            buffer[i] = 0;
+
+        for (let [id, transform] of Object.entries(this.groupTransforms)) {
+            buffer[+id * fpgt + 0]  = transform.offset.x;
+            buffer[+id * fpgt + 1]  = transform.offset.y;
+            buffer[+id * fpgt + 2]  = 0;
+            buffer[+id * fpgt + 3]  = 0;
+            buffer[+id * fpgt + 4]  = transform.right.x;
+            buffer[+id * fpgt + 5]  = transform.right.y;
+            buffer[+id * fpgt + 6]  = transform.up.x;
+            buffer[+id * fpgt + 7]  = transform.up.y;
+            buffer[+id * fpgt + 8]  = transform.objRight.x;
+            buffer[+id * fpgt + 9]  = transform.objRight.y;
+            buffer[+id * fpgt + 10] = transform.objUp.x;
+            buffer[+id * fpgt + 11] = transform.objUp.y;
+        }
+
+        this.updateFloatInfoTexture(buffer, this.transformTexture, 512);
     }
 
     updateColorInfoTexture() {
@@ -464,64 +506,15 @@ export class WebGLContext extends RenderContext {
         for (let i = 0; i < q.length; i++) {
             r.push({
                 aPos: obj.model.transform(q[i]).buffer(),
+                aObjPos: obj.objectPos.buffer(),
                 aCol: obj.color,
                 aFlags,
                 aTex: t[i].buffer(),
                 aGroups: groups,
+                aTransform: obj.transformId,
                 aHsv: obj.hsvId,
                 aSCp
             });
-        }
-
-        return r;
-    }
-
-    genQuad(m: Mat3, c: number, sprite: SpriteCropInfo): number[] {
-        let r = [];
-
-        let q = [
-            new Vec2( -0.5, -0.5 ),
-            new Vec2( -0.5,  0.5 ),
-            new Vec2(  0.5,  0.5 ),
-            new Vec2(  0.5,  0.5 ),
-            new Vec2(  0.5, -0.5 ),
-            new Vec2( -0.5, -0.5 )
-        ];
-
-        const crop = sprite.crop;
-
-        let t_l = crop.x,
-            t_r = crop.x + crop.w,
-            t_t = crop.y,
-            t_b = crop.y + crop.h;
-
-        let t: Vec2[];
-        
-        if (sprite.rotated) {
-            t = [
-                new Vec2( t_r, t_t ),
-                new Vec2( t_l, t_t ),
-                new Vec2( t_l, t_b ),
-                new Vec2( t_l, t_b ),
-                new Vec2( t_r, t_b ),
-                new Vec2( t_r, t_t )
-            ];
-        } else {
-            t = [
-                new Vec2( t_l, t_b ),
-                new Vec2( t_l, t_t ),
-                new Vec2( t_r, t_t ),
-                new Vec2( t_r, t_t ),
-                new Vec2( t_r, t_b ),
-                new Vec2( t_l, t_b )
-            ];
-        }
-
-        for (let i = 0; i < q.length; i++) {
-            r.push(...m.transform(q[i]).buffer());
-            r.push(c);
-            r.push(...t[i].buffer());
-            r.push(t_l, t_t, t_r, t_b);
         }
 
         return r;
@@ -541,7 +534,7 @@ export class WebGLContext extends RenderContext {
         return r;
     }
 
-    compileObjects(c: ObjectBatch) {
+    /*compileObjects(c: ObjectBatch) {
         const builder = new BufferArrayBuilder(attributes);
 
         for (let o of c.objects) {
@@ -554,6 +547,10 @@ export class WebGLContext extends RenderContext {
             count: c.objects.length * 6,
             array: builder.compile(this.gl, this.program)
         };
+    }*/
+
+    createObjectBatch(level: Level): ObjectBatch {
+        return new WebGLObjectBatch(level, this.gl, this.program);
     }
 
     fillRect(pos: Vec2, size: Vec2, color: Color) {
@@ -597,19 +594,27 @@ export class WebGLContext extends RenderContext {
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     }
 
-    render(c: ObjectBatch, options: ContextRenderOptions | null) {
+    render(batch: ObjectBatch, options: ContextRenderOptions | null, mainTexture: any, secondTexture: any) {
+        if (!(batch instanceof WebGLObjectBatch))
+            return;
+
+        const buffer = batch.buffer;
+        if (!(buffer instanceof WebGLBatchBuffer))
+            return;
+
         let gl = this.gl;
 
         if (options == null)
             options = new ContextRenderOptions();
 
         this.program.use();
-        c.buffer.array.use();
+        buffer.bufferArray.use();
 
         this.updateColorInfoTexture();
         this.updatePulseTexture();
         this.updateGroupStateTexture();
         this.updateHSVObjectTexture();
+        this.updateGroupTransformTexture();
 
         this.program.uInteger('uHideTriggers', options.hideTriggers ? 1 : 0);
 
@@ -619,14 +624,15 @@ export class WebGLContext extends RenderContext {
         this.program.uInteger('uGroupStateTexture', 3);
         this.program.uInteger('uObjectHSVTexture', 4);
         this.program.uInteger('uPulseTexture', 5);
+        this.program.uInteger('uTransformTexture', 6);
 
-        if (c.mainTexture.loaded) {
+        if (mainTexture.loaded) {
             gl.activeTexture(gl.TEXTURE0);
-            gl.bindTexture(gl.TEXTURE_2D, c.mainTexture.texture);
+            gl.bindTexture(gl.TEXTURE_2D, mainTexture.texture);
 
-            if (c.secondTexture && c.secondTexture.loaded) {
+            if (secondTexture && secondTexture.loaded) {
                 gl.activeTexture(gl.TEXTURE1);
-                gl.bindTexture(gl.TEXTURE_2D, c.secondTexture.texture);
+                gl.bindTexture(gl.TEXTURE_2D, secondTexture.texture);
             }
             
             gl.activeTexture(gl.TEXTURE2);
@@ -640,8 +646,11 @@ export class WebGLContext extends RenderContext {
             
             gl.activeTexture(gl.TEXTURE5);
             gl.bindTexture(gl.TEXTURE_2D, this.pulseTexture);
+            
+            gl.activeTexture(gl.TEXTURE6);
+            gl.bindTexture(gl.TEXTURE_2D, this.transformTexture);
 
-            gl.drawArrays(gl.TRIANGLES, 0, c.buffer.count);
+            gl.drawArrays(gl.TRIANGLES, 0, batch.vertexCount());
         }
     }
 }

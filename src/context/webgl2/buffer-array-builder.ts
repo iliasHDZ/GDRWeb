@@ -24,6 +24,11 @@ export class BufferArrayBuilder {
         this.data   = [];
     }
 
+    clear() {
+        this.data  = [];
+        this.count = 0;
+    }
+
     static getBaseType(type: ArrayType): ArrayType {
         switch (type) {
         case ArrayType.FLOAT:
@@ -130,12 +135,19 @@ export class BufferArrayBuilder {
             }
         }
 
-        console.log("Buffer generated, size: " + buffer.byteLength);
         return buffer;
     }
 
-    public compile(gl: WebGL2RenderingContext, program: ShaderProgram): BufferArray {
-        const buffer = new BufferObject(gl, this.generateBuffer());
+    public writeToBuffer(buffer: BufferObject, address: number) {
+        buffer.write(this.generateBuffer(), address * this.instanceSize() * 6);
+    }
+
+    public copy(src: BufferObject, dst: BufferObject, srcAddress: number, dstAddress: number, size: number) {
+        const insSize = this.instanceSize() * 6;
+        BufferObject.copy(src, dst, srcAddress * insSize, dstAddress * insSize, size * insSize);
+    }
+
+    public createBufferArray(gl: WebGL2RenderingContext, program: ShaderProgram, buffer: BufferObject): BufferArray {
         const array  = new BufferArray(gl);
 
         const stride = this.instanceSize();
@@ -157,5 +169,10 @@ export class BufferArrayBuilder {
         }
 
         return array;
+    }
+
+    public compile(gl: WebGL2RenderingContext, program: ShaderProgram): BufferArray {
+        const buffer = BufferObject.fromData(gl, this.generateBuffer());
+        return this.createBufferArray(gl, program, buffer);
     }
 };

@@ -3,7 +3,7 @@ import { PulseList } from "../../pulse/pulse-list";
 import { Color } from "../../util/color";
 import { HSVShift } from "../../util/hsvshift";
 import { Util } from "../../util/util";
-import { GDObject } from "../object";
+import { GameObject } from "../object";
 import { TriggerValue, ValueTrigger } from "./value-trigger";
 
 export class PulseTriggerValue extends TriggerValue {
@@ -102,25 +102,29 @@ export class PulseTrigger extends ValueTrigger {
     applyData(data: {}) {
         super.applyData(data);
 
-        this.r = GDObject.parse(data[7], 'number', 255);
-        this.g = GDObject.parse(data[8], 'number', 255);
-        this.b = GDObject.parse(data[9], 'number', 255);
+        this.r = GameObject.parse(data[7], 'number', 255);
+        this.g = GameObject.parse(data[8], 'number', 255);
+        this.b = GameObject.parse(data[9], 'number', 255);
 
-        this.duration = GDObject.parse(data[10], 'number', 0);
+        this.duration = GameObject.parse(data[10], 'number', 0);
 
-        this.fadeIn  = GDObject.parse(data[45], 'number', 0);
-        this.hold    = GDObject.parse(data[46], 'number', 0);
-        this.fadeOut = GDObject.parse(data[47], 'number', 0);
+        this.fadeIn  = GameObject.parse(data[45], 'number', 0);
+        this.hold    = GameObject.parse(data[46], 'number', 0);
+        this.fadeOut = GameObject.parse(data[47], 'number', 0);
 
-        this.pulseMode  = GDObject.parse(data[48], 'boolean', false) ? PulseMode.HSV : PulseMode.COLOR;
-        this.targetType = GDObject.parse(data[52], 'boolean', false) ? PulseTargetType.GROUP : PulseTargetType.CHANNEL;
+        this.pulseMode  = GameObject.parse(data[48], 'boolean', false) ? PulseMode.HSV : PulseMode.COLOR;
+        this.targetType = GameObject.parse(data[52], 'boolean', false) ? PulseTargetType.GROUP : PulseTargetType.CHANNEL;
 
         this.pulseHsv = HSVShift.parse(data[49]);
         
-        this.baseOnly   = GDObject.parse(data[65], 'boolean', false);
-        this.detailOnly = GDObject.parse(data[66], 'boolean', false);
+        this.baseOnly   = GameObject.parse(data[65], 'boolean', false);
+        this.detailOnly = GameObject.parse(data[66], 'boolean', false);
 
-        this.targetId = GDObject.parse(data[51], 'number', 0);
+        this.targetId = GameObject.parse(data[51], 'number', 0);
+    }
+
+    getTriggerTrackId(): number {
+        return this.targetId;
     }
 
     intensityAt(deltaTime: number): number {

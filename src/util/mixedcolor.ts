@@ -1,4 +1,4 @@
-import { GDLevel } from '../level';
+import { Level } from '../level';
 import { GDColor } from './gdcolor';
 import { Color } from './color';
 import { BaseColor } from './basecolor';
@@ -16,7 +16,7 @@ export class MixedColor extends GDColor {
         this.col2 = col2;
     }
 
-    evaluate(level: GDLevel, time: number, iterations: number): [Color, boolean] {
+    evaluate(level: Level, time: number, iterations: number): [Color, boolean] {
         return [
             this.col1.evaluate(level, time, iterations)[0].blend(this.col2.evaluate(level, time, iterations)[0], this.mix),
             this.col1.blending

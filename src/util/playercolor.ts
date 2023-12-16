@@ -1,4 +1,4 @@
-import { GDLevel } from '../level';
+import { Level } from '../level';
 import { GDColor } from './gdcolor';
 import { Color } from './color';
 
@@ -13,7 +13,7 @@ export class PlayerColor extends GDColor {
         this.blending = blending;
     }
 
-    evaluate(level: GDLevel, time: number): [Color, boolean] {
+    evaluate(level: Level, time: number): [Color, boolean] {
         return [level.getPlayerColor(this.plrcol, this.opacity), this.blending];
     }
 }

@@ -1,4 +1,4 @@
-import { GDLevel } from '../level';
+import { Level } from '../level';
 import { GDColor } from './gdcolor';
 import { Color } from './color';
 import { HSVShift } from './hsvshift';
@@ -19,11 +19,11 @@ export class CopyColor extends GDColor {
         this.blending = blending;
     }
 
-    evaluate(level: GDLevel, time: number, iterations: number): [Color, boolean] {
+    evaluate(level: Level, time: number, iterations: number): [Color, boolean] {
         if (iterations == 0)
             return [new Color(1, 1, 1, 1), false];
 
-        let [color, _] = level.colorAtTime(this.channelId, time, iterations - 1);
+        let [color, _] = level.colorManager.colorAtTime(this.channelId, time, iterations - 1);
 
         if (!this.copyOpacity)
             color.a = this.opacity;

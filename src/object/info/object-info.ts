@@ -1,6 +1,6 @@
 import { SpriteCrop, SpriteCropInfo } from "../../util/sprite";
 import { Vec2 } from "../../util/vec2";
-import { GDObject } from "../object";
+import { GameObject } from "../object";
 import { PlistAtlasLoader } from "../plist-loader";
 import { ObjectSpriteColor } from "./object-sprite";
 import { ObjectSprite } from "./object-sprite";
@@ -61,7 +61,7 @@ export class GDObjectInfo {
         let obj = new GDObjectInfo();
 
         obj.zorder = data.default_z_order || -2;
-        obj.zlayer = GDObject.getZLayerValue(data.default_z_layer);
+        obj.zlayer = GameObject.getZLayerValue(data.default_z_layer);
 
         obj.baseCol   = data.default_base_color_channel ?? 1004;
         obj.detailCol = data.default_detail_color_channel ?? 0;

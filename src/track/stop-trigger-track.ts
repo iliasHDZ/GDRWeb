@@ -1,4 +1,4 @@
-import { GDObject } from "../object/object";
+import { Level } from "../level";
 import { StopTrigger } from "../object/trigger/stop-trigger";
 import { Trigger } from "../object/trigger/trigger";
 import { TriggerExecution, TriggerTrack, TriggerTrackList } from "./trigger-track";
@@ -9,16 +9,10 @@ class StopTriggerExecution extends TriggerExecution {
     }
 }
 
-interface GDLevel {
-    getObjects(): GDObject[];
-    timeAt(x: number): number;
-    posAt(x: number): number;
-}
-
 export class StopTriggerTrack extends TriggerTrack {
     public executions: StopTriggerExecution[];
 
-    constructor(level: GDLevel) {
+    constructor(level: Level) {
         super(level);
         this.executions = [];
     }
@@ -47,7 +41,7 @@ export class StopTriggerTrack extends TriggerTrack {
 export class StopTriggerTrackList extends TriggerTrackList {
     public tracks: { [id: number]: StopTriggerTrack } = {};
 
-    constructor(level: GDLevel) {
+    constructor(level: Level) {
         super(level);
     }
 
@@ -78,7 +72,7 @@ export class StopTriggerTrackList extends TriggerTrackList {
         return this.tracks[id].nextExecutionAfter(time);
     }
 
-    public triggerStoppedAt(trigger: Trigger, time: number): number {
+    public triggerStoppedAt(trigger: Trigger, time: number): number | null {
         let stoppedAt: number | null = null;
 
         for (let gid of trigger.groups) {

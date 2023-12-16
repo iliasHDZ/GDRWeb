@@ -1,15 +1,15 @@
-import { Vec2 } from ".";
-import { GDObject } from "./object/object";
+import { GameObject } from "./object/object";
 import { AlphaTrigger, AlphaTriggerValue } from "./object/trigger/alpha-trigger";
-import { MoveTrigger, MoveTriggerValue } from "./object/trigger/move-trigger";
 import { ToggleTrigger, ToggleTriggerValue } from "./object/trigger/toggle-trigger";
 import { ValueTrigger } from "./object/trigger/value-trigger";
 import { Profiler } from "./profiler";
 import { StopTriggerTrackList } from "./track/stop-trigger-track";
-import { Color } from "./util/color";
-import { ValueTriggerTrack, ValueTriggerTrackList } from "./track/value-trigger-track";
+import { ValueTriggerTrackList } from "./track/value-trigger-track";
 import { PulseTargetType, PulseTrigger, PulseTriggerValue } from "./object/trigger/pulse-trigger";
 import { PulseList } from "./pulse/pulse-list";
+import { TriggerTrackList } from "./track/trigger-track";
+import { Trigger } from "./object/trigger/trigger";
+import { Level } from "./level";
 
 function isSameSet(set1: number[], set2: number[]): boolean {
     if (set1.length != set2.length)
@@ -24,7 +24,6 @@ function isSameSet(set1: number[], set2: number[]): boolean {
 
 export class GroupState {
     opacity: number = 1;
-    offset: Vec2 = new Vec2(0, 0);
     active: boolean = true;
     pulseList: PulseList;
     /*lastPulseTime: number = 0;
@@ -35,7 +34,6 @@ export class GroupState {
         let res = new GroupState();
 
         res.opacity = this.opacity * state.opacity;
-        res.offset  = this.offset.add(state.offset);
         res.active  = this.active || state.active;
 
         res.pulseList = new PulseList();
@@ -44,15 +42,6 @@ export class GroupState {
 
         return res;
     }
-}
-
-interface GDLevel {
-    getObjects(): GDObject[];
-    timeAt(x: number): number;
-    posAt(x: number): number;
-    setProgress(step: number, percent: number): void;
-    stopTrackList: StopTriggerTrackList;
-    profiler: Profiler;
 }
 
 function removeItem<T>(array: T[], value: T) {
@@ -78,33 +67,46 @@ function removeItem<T>(array: T[], value: T) {
 export class GroupManager {
     // groupStates: { [id: number]: GroupState } = {};
 
-    doubleGroups: { [id: number]: [number, number] } = {};
-    lastDoubleGroupId: number = 0;
-    startDoubleGroupIds: number = 0;
+    doubleGroups: { [id: number]: [number, number] };
+    lastDoubleGroupId: number;
+    startDoubleGroupIds: number;
     
-    groupCombs: { [comb: number]: number[] } = {};
-    lastGroupCombIdx: number = 0;
+    groupCombs: { [comb: number]: number[] };
 
-    largestGroupId: number = 0;
+    rawGroupCombs: { [comb: number]: number[] };
+    lastGroupCombIdx: number;
+
+    largestGroupId: number;
 
     alphaTrackList: ValueTriggerTrackList;
-    moveTrackList: ValueTriggerTrackList;
     toggleTrackList: ValueTriggerTrackList;
     pulseTrackList: ValueTriggerTrackList;
 
-    level: GDLevel;
+    level: Level;
 
-    constructor(level: GDLevel) {
+    constructor(level: Level) {
         this.level = level;
+        this.reset();
     }
 
     reset() {
+        this.alphaTrackList  = new ValueTriggerTrackList(this.level, AlphaTriggerValue.default());
+        this.toggleTrackList = new ValueTriggerTrackList(this.level, ToggleTriggerValue.default());
+        this.pulseTrackList  = new ValueTriggerTrackList(this.level, PulseTriggerValue.default());
+
         this.doubleGroups = {};
         this.lastDoubleGroupId = 0;
         this.startDoubleGroupIds = 0;
+        this.rawGroupCombs = {};
         this.groupCombs = {};
         this.lastGroupCombIdx = 0;
         this.largestGroupId = 0;
+    }
+
+    public updateStopActions(id: number | null = null) {
+        this.alphaTrackList.updateStopActions(id);
+        this.toggleTrackList.updateStopActions(id);
+        this.pulseTrackList.updateStopActions(id);
     }
 
     getGroupCombinationIdx(groups: number[]): number | null {
@@ -137,13 +139,6 @@ export class GroupManager {
         return res;
     }
 
-    getMoveOffsetAtTime(groupId: number, time: number): Vec2 {
-        this.level.profiler.start("Move Trigger Evaluation");
-        const value = (this.moveTrackList.combinedValueAt(groupId, time) as MoveTriggerValue).offset;
-        this.level.profiler.end();
-        return value;
-    }
-
     getActiveValueAtTime(groupId: number, time: number): boolean {
         this.level.profiler.start("Toggle Trigger Evaluation");
         const value = (this.toggleTrackList.lastValueAt(groupId, time) as ToggleTriggerValue).active;
@@ -165,7 +160,6 @@ export class GroupManager {
 
         const state = new GroupState();
         state.opacity   = this.getAlphaValueAtTime(groupId, time);
-        state.offset    = this.getMoveOffsetAtTime(groupId, time);
         state.active    = this.getActiveValueAtTime(groupId, time);
         state.pulseList = this.getPulseListAtTime(groupId, time);
 
@@ -196,6 +190,7 @@ export class GroupManager {
             }
 
             idx = this.lastGroupCombIdx++;
+            this.rawGroupCombs[idx] = obj.groups.slice();
             this.groupCombs[idx] = obj.groups.slice();
             obj.groupComb = idx;
         }
@@ -204,26 +199,17 @@ export class GroupManager {
         this.lastDoubleGroupId = this.startDoubleGroupIds;
     }
 
-    loadTriggers() {
-        this.alphaTrackList = new ValueTriggerTrackList(this.level, AlphaTriggerValue.default());
-        this.alphaTrackList.loadAllAlphaTriggers(p => this.level.setProgress(5, p));
-        
-        this.moveTrackList = new ValueTriggerTrackList(this.level, MoveTriggerValue.default());
-        this.moveTrackList.loadAllMoveTriggers(p => this.level.setProgress(6, p));
+    public getTrackListForTrigger(trigger: Trigger): TriggerTrackList | null {
+        if (trigger instanceof AlphaTrigger)
+            return this.alphaTrackList;
 
-        this.toggleTrackList = new ValueTriggerTrackList(this.level, ToggleTriggerValue.default());
-        this.toggleTrackList.loadAllToggleTriggers();
+        if (trigger instanceof ToggleTrigger)
+            return this.toggleTrackList;
 
-        this.pulseTrackList = new ValueTriggerTrackList(this.level, PulseTriggerValue.default());
-        this.pulseTrackList.loadAllNonSpawnTriggers((trigger: ValueTrigger) => {
-            if (!(trigger instanceof PulseTrigger))
-                return null;
+        if (trigger instanceof PulseTrigger && trigger.targetType == PulseTargetType.GROUP)
+            return this.pulseTrackList;
 
-            if (trigger.targetType != PulseTargetType.GROUP || trigger.targetId == 0)
-                return null;
-
-            return trigger.targetId;
-        });
+        return null;
     }
 
     createDoubleGroup(group1: number, group2: number): number {
@@ -293,8 +279,6 @@ export class GroupManager {
 
             largeGroupCombs = largeGroupCombs.filter(comb => comb.length > maxGroupsPerObject);
         }
-
-        console.log(`${Object.keys(this.doubleGroups).length} double groups generated`);
 
         if (largeGroupCombs.length == 0)
             return;

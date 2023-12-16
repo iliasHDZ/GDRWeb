@@ -1,5 +1,6 @@
+import { Level } from "../../level";
 import { Util } from "../../util/util";
-import { GDObject } from "../object";
+import { GameObject } from "../object";
 import { TriggerValue, ValueTrigger } from "./value-trigger";
 
 export class AlphaTriggerValue extends TriggerValue {
@@ -23,10 +24,14 @@ export class AlphaTrigger extends ValueTrigger {
     applyData(data: {}): void {
         super.applyData(data);
 
-        this.duration = GDObject.parse(data[10], 'number', 0);
-        this.alpha    = GDObject.parse(data[35], 'number', 1);
+        this.duration = GameObject.parse(data[10], 'number', 0);
+        this.alpha    = GameObject.parse(data[35], 'number', 1);
 
-        this.targetGroupId = GDObject.parse(data[51], 'number', 0);
+        this.targetGroupId = GameObject.parse(data[51], 'number', 0);
+    }
+
+    getTriggerTrackId(): number {
+        return this.targetGroupId;
     }
 
     public valueAfterDelta(startValue: TriggerValue, deltaTime: number, _: number): TriggerValue {

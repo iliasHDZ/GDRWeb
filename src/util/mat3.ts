@@ -16,6 +16,20 @@ export class Mat3 {
         return r;
     }
 
+    equals(m: Mat3): boolean {
+        return (
+            this.d[0] == m.d[0] &&
+            this.d[1] == m.d[1] &&
+            this.d[2] == m.d[2] &&
+            this.d[3] == m.d[3] &&
+            this.d[4] == m.d[4] &&
+            this.d[5] == m.d[5] &&
+            this.d[6] == m.d[6] &&
+            this.d[7] == m.d[7] &&
+            this.d[8] == m.d[8]
+        );
+    }
+
     translate(v: Vec2) {
         let d = this.d, x = v.x, y = v.y;
         let a00 = d[0],

@@ -1,8 +1,8 @@
-import { GDObject } from "./object/object";
+import { GameObject } from "./object/object";
 import { HSVShift } from "./util/hsvshift";
 
 interface GDLevel {
-    getObjects(): GDObject[];
+    getObjects(): GameObject[];
     timeAt(x: number): number;
     setProgress(step: number, percent: number): void;
 }

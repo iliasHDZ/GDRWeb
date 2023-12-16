@@ -1,5 +1,5 @@
 import { ContextRenderOptions, RenderContext } from './context/context'
-import { ObjectBatch } from './render/object-batch';
+import { ObjectBatch } from './context/object-batch';
 import { Texture } from './render/texture';
 import { Color } from './util/color';
 import { Mat3 } from './util/mat3';
@@ -8,11 +8,14 @@ import { GDObjectInfo, GDObjectsInfo } from './object/info/object-info'
 
 import objectDataList from '../assets/object_mod.json';
 // import objectDataList from '../assets/data.json';
-import { GDLevel } from './level';
+import { ColorChannel, Level } from './level';
 import { Camera } from './camera';
 import { PlistAtlasLoader } from './object/plist-loader';
 import { SpriteCropInfo } from './util/sprite';
 import { Profile } from './profiler';
+import { GameObject } from './object/object';
+import { TestBufferedObjectBatch } from './context/object-batch';
+import { SpeedPortal } from './object/speed-portal';
 
 const GD_BACKGROUND_COUNT = 20;
 const GD_GROUND_COUNT = 17;
@@ -154,6 +157,12 @@ export class Renderer {
         this.handlers[event].push(handler);
     }
 
+    createObjectBatch(level: Level): ObjectBatch {
+        const batch = this.ctx.createObjectBatch(level);
+        batch.setRenderInfo(Renderer.objectInfo);
+        return batch;
+    }
+
     renderGroundTexture(texture: Texture, color: Color, gndNum: number) {
         let y: number;
         if (gndNum == 0) {
@@ -176,10 +185,10 @@ export class Renderer {
         }
     }
 
-    renderGround(level: GDLevel, currentTime: number) {
-        const [gnd1Color] = level.colorAtTime(1001, currentTime, 7);
-        const [gnd2Color] = level.colorAtTime(1009, currentTime, 7);
-        const [lineColor]   = level.colorAtTime(1002, currentTime, 7);
+    renderGround(level: Level, currentTime: number) {
+        const [gnd1Color] = level.colorAtTime(ColorChannel.G1, currentTime);
+        const [gnd2Color] = level.colorAtTime(ColorChannel.G2, currentTime);
+        const [lineColor]   = level.colorAtTime(ColorChannel.LINE, currentTime);
 
         const camSize = this.camera.getCameraWorldSize();
 
@@ -196,7 +205,7 @@ export class Renderer {
         this.ctx.fillRect(new Vec2(this.camera.x, -1), new Vec2(camSize.x, 2), lineColor);
     }
 
-    render(level: GDLevel, options: RenderOptions = { hideTriggers: false }): Profile {
+    render(level: Level, options: RenderOptions = { hideTriggers: false }): Profile {
         level.profiler.start("Rendering");
 
         const playerX = this.camera.x;// - 75;
@@ -226,6 +235,9 @@ export class Renderer {
             this.ctx.setGroupState(i, level.groupManager.getGroupStateAt(i, currentTime));
         level.profiler.end();
 
+        for (let i = 0; i < level.transformManager.getTotalTransformCount(); i++)
+            this.ctx.setGroupTransform(i, level.transformManager.valueAt(i, currentTime));
+
         if (!level.objectHSVsLoaded) {
             for (let i = 1; i < level.objectHSVManager.getTotalHSVCount(); i++)
                 this.ctx.setObjectHSV(i, level.objectHSVManager.getObjectHSV(i));
@@ -237,11 +249,120 @@ export class Renderer {
 
         ctxopts.hideTriggers = options.hideTriggers;
 
+        const gfx = level.fetchLevelGraphics(this);
+
         level.profiler.start("Render Call");
-        this.ctx.render(level.level_col, ctxopts);
+        this.ctx.render(gfx.mainBatch, ctxopts, this.sheet0, this.sheet2);
         this.renderGround(level, currentTime);
         level.profiler.end();
 
         return level.profiler.end();
+    }
+
+    testBatchInsertion(): boolean {
+        const level = new Level();
+        level.init();
+
+        const objects1 = GameObject.generateRandomObjects(10);
+        const objects2 = GameObject.generateRandomObjects(10);
+
+        const batch1 = new TestBufferedObjectBatch(level);
+        const batch2 = new TestBufferedObjectBatch(level);
+
+        batch1.setRenderInfo(Renderer.objectInfo);
+        batch2.setRenderInfo(Renderer.objectInfo);
+
+        console.log("PREPARING BATCH A");
+        batch1.insertMultiple(objects1.concat(objects2));
+
+        console.log("PREPARING BATCH B");
+        batch2.insertMultiple(objects1);
+        batch2.insertMultiple(objects2);
+
+        console.log(objects1);
+        console.log(objects2);
+        console.log(batch1);
+        console.log(batch2);
+
+        batch1.printLayering();
+        batch2.printLayering();
+
+        const success = TestBufferedObjectBatch.haveSameResults(batch1, batch2);
+        console.log(success);
+
+        return success;
+    }
+
+    testBatchRemoval(): boolean {
+        const level = new Level();
+        level.init();
+
+        const objects1 = GameObject.generateRandomObjects(10);
+        const objects2 = GameObject.generateRandomObjects(10);
+
+        const batch1 = new TestBufferedObjectBatch(level);
+        const batch2 = new TestBufferedObjectBatch(level);
+
+        batch1.setRenderInfo(Renderer.objectInfo);
+        batch2.setRenderInfo(Renderer.objectInfo);
+
+        console.log("PREPARING BATCH A");
+        batch1.insertMultiple(objects1);
+
+        console.log("PREPARING BATCH B");
+        batch2.insertMultiple(objects1.concat(objects2));
+        batch2.removeMultiple(objects2);
+
+        console.log(objects1);
+        console.log(objects2);
+        console.log(batch1);
+        console.log(batch2);
+
+        batch1.printLayering();
+        batch2.printLayering();
+
+        const success = TestBufferedObjectBatch.haveSameResults(batch1, batch2);
+        console.log(success);
+
+        return success;
+    }
+
+    testSpeedPortalInsertion(): Level | null {
+        const level1 = new Level();
+        level1.init();
+
+        const level2 = new Level();
+        level2.init();
+
+        const portals1 = SpeedPortal.generateRandomObjects(20, {randTransform: true});
+        const portals2 = SpeedPortal.generateRandomObjects(20, {randTransform: true});
+
+        console.log(portals1);
+        console.log(portals2);
+
+        level1.insertObjects(portals1.concat(portals2));
+
+        level2.insertObjects(portals1);
+        level2.insertObjects(portals2);
+
+        const time1 = level1.timeAt(3000);
+        const time2 = level2.timeAt(3000);
+
+        console.log(time1, time2);
+
+        if (Math.abs(time1 - time2) > 0.01)
+            return null;
+
+        const pos1 = level1.posAt(time1);
+        const pos2 = level2.posAt(time2);
+
+        console.log(pos1, pos2);
+
+        if (Math.abs(pos1 - 3000) > 0.01)
+            return null;
+        if (Math.abs(pos2 - 3000) > 0.01)
+            return null;
+
+        return level1;
     }
 }

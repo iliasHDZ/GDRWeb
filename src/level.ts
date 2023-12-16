@@ -1,4 +1,4 @@
-import { GDObject } from "./object/object";
+import { GameObject } from "./object/object";
 import { PortalSpeed, SpeedPortal } from "./object/speed-portal";
 import { ColorTrigger, ColorTriggerValue } from "./object/trigger/color-trigger";
 import { AlphaTrigger } from "./object/trigger/alpha-trigger";
@@ -6,16 +6,14 @@ import { PulseTargetType, PulseTrigger, PulseTriggerValue } from "./object/trigg
 import { MoveTrigger } from "./object/trigger/move-trigger";
 import { ToggleTrigger } from "./object/trigger/toggle-trigger";
 import { StopTrigger } from "./object/trigger/stop-trigger";
-import { ObjectBatch } from "./render/object-batch";
 import { Renderer } from "./renderer";
 import { Color } from "./util/color";
 import { GDColor } from "./util/gdcolor";
 import { BaseColor } from "./util/basecolor";
 import { PlayerColor } from "./util/playercolor";
 import { CopyColor } from "./util/copycolor";
-import { ObjectSprite, ObjectSpriteColor } from "./object/info/object-sprite";
 import { ValueTriggerTrack, ValueTriggerTrackList } from "./track/value-trigger-track";
-import { GroupManager } from "./groups";
+import { GroupManager } from "./group-manager";
 import { HSVShift, hsv2rgb, rgb2hsv } from "./util/hsvshift";
 import { ObjectHSVManager } from "./objecthsv";
 import { ValueTrigger } from "./object/trigger/value-trigger";
@@ -24,7 +22,13 @@ import { StopTriggerTrackList } from "./track/stop-trigger-track";
 import { GameState } from "./game-state";
 import { LevelDecoder, LevelFileExtension } from "./level-decoder";
 
-import object_types from "../assets/object_types.json";
+import { TransformManager } from "./transform/transform-manager";
+import { RotateTrigger } from "./object/trigger/rotate-trigger";
+import { LevelGraphics } from "./level-graphics";
+import { SpeedManager } from "./speed-manager";
+import { Trigger } from "./object/trigger/trigger";
+import { TriggerTrackList } from "./track/trigger-track";
+import { ColorManager } from "./color-manager";
 
 const LOADING_STEPS_COUNT = 10;
 
@@ -41,44 +45,43 @@ export enum ColorChannel {
     BLACK = 1010
 };
 
-export class GDLevel {
-    private data: GDObject[] = [];
-
-    private speedportals: number[];
-
-    private colorTrackList: ValueTriggerTrackList;
-    private pulseTrackList: ValueTriggerTrackList;
+export class Level {
+    private data: GameObject[] = [];
 
     public stopTrackList: StopTriggerTrackList;
 
-    renderer: Renderer;
-    level_col: ObjectBatch;
-
-    speed: PortalSpeed;
-    song_offset: number;
-    backgroundId: number;
-    groundId: number;
+    song_offset: number = 0;
+    backgroundId: number = 0;
+    groundId: number = 0;
 
     loadProgEvent: (percent: number) => void | null = null;
 
     valid_channels: number[];
 
-    startColors: { [ch: number]: GDColor } = {};
+    validColorChannels: Set<number> = new Set<number>();
 
-    groupManager: GroupManager;
+    public speedManager: SpeedManager;
+    public colorManager: ColorManager;
+    public groupManager: GroupManager;
+    public transformManager: TransformManager;
+
     objectHSVManager: ObjectHSVManager;
-
     objectHSVsLoaded: boolean = false;
 
-    gamemodePortals: GDObject[];
+    levelGraphicsList: LevelGraphics[] = [];
+    
+    gamemodePortals: GameObject[];
 
     profiler: Profiler;
 
-    constructor(renderer: Renderer) {
-        this.renderer = renderer;
-
+    constructor() {
+        this.speedManager = new SpeedManager();
+        this.colorManager = new ColorManager(this);
         this.groupManager = new GroupManager(this);
+        this.transformManager = new TransformManager(this, this.groupManager);
         this.objectHSVManager = new ObjectHSVManager(this);
+        
+        this.stopTrackList = new StopTriggerTrackList(this);
 
         this.profiler = new Profiler();
     }
@@ -86,42 +89,6 @@ export class GDLevel {
     setProgress(step: number, percent: number) {
         if (this.loadProgEvent != null)
             this.loadProgEvent(step / LOADING_STEPS_COUNT + percent / LOADING_STEPS_COUNT);
-    }
-
-    static parseStartColor(level: GDLevel, str: string) {
-        if (str == '')
-            return;
-
-        let psplit = str.split('_');
-        let props  = {};
-
-        for (let p = 0; p < psplit.length; p += 2)
-            props[+psplit[p]] = psplit[p + 1];
-
-        let r = GDObject.parse(props[1], 'number', 255);
-        let g = GDObject.parse(props[2], 'number', 255);
-        let b = GDObject.parse(props[3], 'number', 255);
-
-        let plr = GDObject.parse(props[4], 'number', -1);
-        let blending = GDObject.parse(props[5], 'boolean', false);
-
-        let id = GDObject.parse(props[6], 'number', 1);
-        let a = GDObject.parse(props[7], 'number', 1);
-
-        let copyId = GDObject.parse(props[9], 'number', 0);
-        let copyOpacity = GDObject.parse(props[17], 'boolean', 0);
-        let copyHsvShift = HSVShift.parse(props[10]);
-
-        let color: GDColor;
-
-        if (copyId != 0)
-            color = new CopyColor(copyId, copyOpacity, copyHsvShift, a, blending);
-        else if (plr != -1)
-            color = new PlayerColor(plr - 1, a, blending);
-        else
-            color = new BaseColor(r, g, b, a, blending);
-
-        level.startColors[id] = color;
     }
 
     static getLevelSpeedEnum(speed: number) {
@@ -135,54 +102,37 @@ export class GDLevel {
         }
     }
 
-    static parseLevelProps(level: GDLevel, str: string) {
+    static parseLevelProps(level: Level, str: string) {
         let psplit = str.split(',');
         let props  = {};
 
         for (let p = 0; p < psplit.length; p += 2)
             props[psplit[p]] = psplit[p + 1];
         
-        const speed = GDObject.parse(props['kA4'], 'number', 0);
-        level.speed = GDLevel.getLevelSpeedEnum(speed);
+        const speed = GameObject.parse(props['kA4'], 'number', 0);
+        level.speedManager.startSpeed = Level.getLevelSpeedEnum(speed);
         
-        level.song_offset = GDObject.parse(props['kA13'], 'number', 0);
-        level.backgroundId = GDObject.parse(props['kA6'], 'number', 1);
-        level.groundId = GDObject.parse(props['kA7'], 'number', 1);
+        level.song_offset = GameObject.parse(props['kA13'], 'number', 0);
+        level.backgroundId = GameObject.parse(props['kA6'], 'number', 1);
+        level.groundId = GameObject.parse(props['kA7'], 'number', 1);
 
         if (props['kS38']) {
-            for (let c of props['kS38'].split('|'))
-                this.parseStartColor(level, c);
+            for (let colorStr of props['kS38'].split('|'))
+                level.colorManager.parseStartColor(colorStr);
         }
     }
 
-    static parseObject(level: GDLevel, data: {}): GDObject {
-        let id = data[1] || 1;
+    static parseObject(data: {}): GameObject | null {
+        let id = +data[1] ?? 1;
 
-        let obj: GDObject;
-    
-        if (SpeedPortal.isOfType(id))
-            obj = new SpeedPortal(level);
-        else if (ColorTrigger.isOfType(id))
-            obj = new ColorTrigger(level);
-        else if (AlphaTrigger.isOfType(id))
-            obj = new AlphaTrigger(level);
-        else if (PulseTrigger.isOfType(id))
-            obj = new PulseTrigger(level);
-        else if (MoveTrigger.isOfType(id))
-            obj = new MoveTrigger(level);
-        else if (ToggleTrigger.isOfType(id))
-            obj = new ToggleTrigger(level);
-        else if (StopTrigger.isOfType(id))
-            obj = new StopTrigger(level);
-        else
-            obj = new GDObject(level);
-    
+        let obj = GameObject.create(id);
         obj.applyData(data);
+
         return obj;
     }
 
-    static parse(renderer: Renderer, data: string, loadProg: (percent: number) => void | null = null): GDLevel {
-        let level = new GDLevel(renderer);
+    static parse(data: string, loadProg: (percent: number) => void | null = null): Level {
+        let level = new Level();
         if (loadProg != null)
             level.loadProgEvent = loadProg;
 
@@ -198,8 +148,11 @@ export class GDLevel {
 
             for (let p = 0; p < psplit.length; p += 2)
                 props[+psplit[p]] = psplit[p + 1];
+
+            const obj = this.parseObject(props);
             
-            level.data.push(this.parseObject(level, props));
+            if (obj != null)
+                level.insertObject(obj);
 
             if (i % 1000 == 1)
                 level.setProgress(0, i / split.length);
@@ -209,79 +162,34 @@ export class GDLevel {
         return level;
     }
 
-    static async parseAsync(renderer: Renderer, data: string, loadProg: (percent: number) => void | null = null): Promise<GDLevel> {
-        return this.parse(renderer, data, loadProg);
+    static async parseAsync(data: string, loadProg: (percent: number) => void | null = null): Promise<Level> {
+        return this.parse(data, loadProg);
     }
 
-    static fromBase64String(renderer: Renderer, data: string): GDLevel {
+    static fromBase64String(data: string): Level {
         let decoder = new LevelDecoder();
         decoder.decodeBase64Level(data);
 
-        return GDLevel.parse(renderer, decoder.levelString);
+        return Level.parse(decoder.levelString);
     }
 
-    static async loadFromFile(path: string, renderer: Renderer, extension: LevelFileExtension = "auto"): Promise<GDLevel> {
+    static async loadFromFile(path: string, extension: LevelFileExtension = "auto"): Promise<Level> {
         let decoder = new LevelDecoder();
         await decoder.decodeFromFile(path, extension);
 
-        return GDLevel.parse(renderer, decoder.levelString);
+        return Level.parse(decoder.levelString);
     }
 
-    getObjects(): GDObject[] {
+    getObjects(): GameObject[] {
         return this.data;
     }
 
-    getStartColor(ch: number): GDColor {
-        if (!this.startColors[ch])
-            return BaseColor.white();
-
-        return this.startColors[ch];
-    }
-
     timeAt(x: number): number {
-        let sec = 0, lx = 15, spd = SpeedPortal.getSpeed(this.speed);
-
-        for (let i of this.speedportals) {
-            let sp = this.data[i] as SpeedPortal;
-            if (!sp) continue;
-
-            if (sp.x >= x)
-                break;
-
-            let delta = sp.x - lx;
-            if (delta < 0) continue;
-
-            sec += delta / spd;
-            lx  += delta;
-
-            spd = SpeedPortal.getSpeed(sp.speed);
-        }
-
-        return sec + (x - lx) / spd;
+        return this.speedManager.timeAt(x);
     }
 
     posAt(s: number): number {
-        let sec = 0, lx = 15, spd = SpeedPortal.getSpeed(this.speed);
-
-        for (let i of this.speedportals) {
-            let sp = this.data[i] as SpeedPortal;
-            if (!sp) continue;
-
-            let delta = sp.x - lx;
-            if (delta < 0) continue;
-
-            let tsec = sec + delta / spd;
-
-            if (tsec >= s)
-                break;
-
-            sec =  tsec;
-            lx  += delta;
-
-            spd = SpeedPortal.getSpeed(sp.speed);
-        }
-
-        return lx + (s - sec) * spd;
+        return this.speedManager.posAt(s);
     }
 
     getPlayerColor(plrcol: number, opacity: number): Color {
@@ -293,50 +201,18 @@ export class GDLevel {
         return new Color(0, 0, 0, opacity);
     }
 
-    gdColorAt(ch: number, time: number): GDColor {
-        const col = this.colorTrackList.valueAt(ch, time);
-
-        if (!(col instanceof ColorTriggerValue))
-            return BaseColor.white();
-
-        return col.color;
+    public colorAtTime(ch: number, time: number): [Color, boolean] {
+        return this.colorManager.colorAtTime(ch, time);
     }
 
-    getLBG(time: number): [Color, boolean] {
-        const [bg] = this.colorAtTime(ColorChannel.BG, time);
-        const [p1] = this.colorAtTime(ColorChannel.P1, time);
-
-        let hsv = rgb2hsv(bg.r, bg.g, bg.b);
-        hsv[1] = Math.max(hsv[1] - 20, 0);
-
-        const [r, g, b] = hsv2rgb(...hsv);
-    
-        return [p1.blend(new Color(r, g, b, 1), hsv[2] / 100), true];
+    public colorAtPos(ch: number, x: number): [Color, boolean] {
+        return this.colorManager.colorAtPos(ch, x);
     }
 
-    colorAtTime(ch: number, time: number, iterations: number = 8): [Color, boolean] {
-        let color: Color, blending: boolean;
-        if (iterations == 8) this.profiler.start("Color Trigger Evaluation");
-        if (ch == ColorChannel.LBG) {
-            [color, blending] = this.getLBG(time);
-        } else {
-            [color, blending] = this.gdColorAt(ch, time).evaluate(this, time, iterations);
-        }
-        if (iterations == 8) this.profiler.end();
-
-        if (iterations == 8) this.profiler.start("Pulse Trigger Evaluation");
-        const pulse = this.pulseTrackList.combinedValueAt(ch, time) as PulseTriggerValue;
-        color = pulse.applyToColor(color);
-        if (iterations == 8) this.profiler.end();
-
-        return [
-            color,
-            blending
-        ];
-    }
-
-    colorAtPos(ch: number, x: number): [Color, boolean] {
-        return this.colorAtTime(ch, this.timeAt(x));
+    public updateStopActions(id: number | null = null) {
+        this.colorManager.updateStopActions(id);
+        this.groupManager.updateStopActions(id);
+        this.transformManager.updateStopActions(id);
     }
 
     gameStateAtPos(pos: number): GameState {
@@ -352,89 +228,87 @@ export class GDLevel {
         return state;
     }
 
-    addTexture(object: GDObject, sprite: ObjectSprite, groups: number[], hsvId: number) {
-        const objectMatrix = object.getModelMatrix();
-        const spriteMatrix = sprite.getRenderModelMatrix();
+    public getTrackListForTrigger(trigger: Trigger): TriggerTrackList | null {
+        if (trigger instanceof StopTrigger)
+            return this.stopTrackList;
 
-        this.level_col.add(
-            objectMatrix.multiply(spriteMatrix),
-            object.getColorChannel(sprite.colorType),
-            sprite.sprite,
-            groups,
-            hsvId,
-            sprite.colorType == ObjectSpriteColor.BLACK,
-            object_types.triggers.includes(object.id)
-        );
+        const list = this.colorManager.getTrackListForTrigger(trigger);
+        if (list) return list;
+
+        return this.groupManager.getTrackListForTrigger(trigger);
     }
 
-    loadSpeedPortals() {
-        this.speedportals = [];
-
-        for (let i = 0; i < this.data.length; i++)
-            if (this.data[i] && this.data[i] instanceof SpeedPortal)
-                this.speedportals.push(i);
-
-        this.speedportals.sort((a, b) => this.data[a].x - this.data[b].x);
+    private insertObjectsIntoBatch(objects: GameObject[]): void {
+        for (let gfx of this.levelGraphicsList) {
+            gfx.insertObjects(objects);
+        }
     }
 
-    loadColorTracks() {
-        this.colorTrackList = new ValueTriggerTrackList(this, ColorTriggerValue.default());
-
-        for (let [ch, color] of Object.entries(this.startColors))
-            this.colorTrackList.createTrackWithStartValue(+ch, new ColorTriggerValue(color));
-
-        this.colorTrackList.loadAllColorTriggers(p => this.setProgress(2, p));
+    private removeObjectsFromBatch(objects: GameObject[]): void {
+        for (let gfx of this.levelGraphicsList) {
+            gfx.removeObjects(objects);
+        }
     }
 
-    loadPulseTracks() {
-        this.pulseTrackList = new ValueTriggerTrackList(this, PulseTriggerValue.default());
-
-        this.pulseTrackList.loadAllNonSpawnTriggers((trigger: ValueTrigger) => {
-            if (!(trigger instanceof PulseTrigger))
-                return null;
-
-            if (trigger.targetType != PulseTargetType.CHANNEL || trigger.targetId == 0)
-                return null;
-
-            return trigger.targetId;
-        }, p => this.setProgress(3, p));
-    }
-
-    isObjectBlending(object: GDObject): boolean {
-        const track = this.colorTrackList.get(object.baseCol);
-        if (track == null || !(track instanceof ValueTriggerTrack))
-            return false;
-
-        const exec = track.lastExecutionLeftOf(object.x);
-        if (exec != null) {
-            if (!(exec.trigger instanceof ColorTrigger))
-                return false;
-
-            return exec.trigger.blending;
+    public insertObjects(objects: GameObject[]): void {
+        for (let obj of objects) {
+            obj.insertObject(this);
+            this.data.push(obj);
         }
 
-        if (!(track.startValue instanceof ColorTriggerValue))
-            return false;
+        this.insertObjectsIntoBatch(objects);
+    }
 
-        return track.startValue.color.blending;
+    public insertObject(object: GameObject): void {
+        object.insertObject(this);
+        this.data.push(object);
+
+        this.insertObjectsIntoBatch([object]);
+    }
+
+    public removeObjects(objects: GameObject[]): void {
+        for (let obj of objects) {
+            obj.removeObject(this);
+            const idx = this.data.indexOf(obj);
+            if (idx != -1)
+                this.data.splice(idx, 0);
+        }
+
+        this.removeObjectsFromBatch(objects);
+    }
+
+    public removeObject(object: GameObject): void {
+        object.removeObject(this);
+        const idx = this.data.indexOf(object);
+        if (idx != -1)
+            this.data.splice(idx, 0);
+
+        this.removeObjectsFromBatch([object]);
+    }
+
+    private createLevelGraphics(renderer: Renderer): LevelGraphics {
+        const gfx = new LevelGraphics(this, renderer);
+        gfx.insertObjects(this.data);
+        this.levelGraphicsList.push(gfx);
+        return gfx;
+    }
+
+    public fetchLevelGraphics(renderer: Renderer): LevelGraphics {
+        for (let gfx of this.levelGraphicsList) {
+            if (gfx.renderer == renderer)
+                return gfx;
+        }
+
+        return this.createLevelGraphics(renderer);
     }
 
     init() {
-        this.level_col = new ObjectBatch(this.renderer.ctx, this.renderer.sheet0, this.renderer.sheet2);
-
         this.setProgress(1, 0);
-        this.loadSpeedPortals();
 
-        this.stopTrackList = new StopTriggerTrackList(this);
-        this.stopTrackList.loadAllTriggers();
-
-        this.loadColorTracks();
-        this.loadPulseTracks();
-
-        this.groupManager.reset();
         this.groupManager.loadGroups();
         this.groupManager.compressLargeGroupCombinations(4);
-        this.groupManager.loadTriggers();
+
+        this.transformManager.prepare();
 
         this.objectHSVManager.reset();
         this.objectHSVManager.loadObjectHSVs();
@@ -446,19 +320,19 @@ export class GDLevel {
         }
         this.gamemodePortals.sort((a, b) => a.x - b.x);
 
-        let data: [GDObject, number, boolean][] = [];
+        let data: [GameObject, number, boolean][] = [];
 
         let ind = 0;
 
         for (let o of this.data) {
             if (o.x == 0 && o.y == 0 && o.id == 1)
                 continue;
-            data.push([o, ind++, this.isObjectBlending(o)]);
+            data.push([o, ind++, this.colorManager.isObjectBlending(o)]);
         }
 
         this.setProgress(8, 0);
         data.sort((a, b) => {
-            let r = GDObject.compareZOrder(a[0], b[0], a[2], b[2]);
+            let r = GameObject.compareZOrder(a[0], b[0], a[2], b[2]);
             if (r != 0) return r;
 
             return a[1] - b[1];
@@ -466,39 +340,12 @@ export class GDLevel {
 
         this.valid_channels = [0];
 
-        let i = 0;
         for (let [obj] of data) {
-            if (i % 1000 == 0)
-                this.setProgress(9, i / data.length);
-            i++;
-
-            const info = Renderer.objectInfo.getData(obj.id);
-            if (!info) continue;
-
-            if (info.rootSprite) {
-                const groups = this.groupManager.getGroupCombination(obj.groupComb ?? null);
-
-                const baseHSVId   = obj.baseHSVShiftId;
-                const detailHSVId = obj.detailHSVShiftId;
-
-                info.rootSprite.enumerateAllByDepth(sprite => {
-                    let hsvId = 0;
-                    if (sprite.colorType == ObjectSpriteColor.BASE)
-                        hsvId = baseHSVId;
-                    if (sprite.colorType == ObjectSpriteColor.DETAIL)
-                        hsvId = detailHSVId;
-
-                    this.addTexture(obj, sprite, groups, hsvId);
-                });
-            }
-
             if (obj.baseCol != 0 && !this.valid_channels.includes(obj.baseCol))
                 this.valid_channels.push(obj.baseCol);
 
             if (obj.detailCol != 0 && !this.valid_channels.includes(obj.detailCol))
                 this.valid_channels.push(obj.detailCol);
         }
-
-        this.level_col.compile();
     }
 }

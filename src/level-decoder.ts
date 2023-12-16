@@ -44,8 +44,6 @@ export class LevelDecoder {
         pliststr = pliststr.replaceAll("<t", "<true");
         pliststr = pliststr.replaceAll("<f", "<false");
 
-        console.log(pliststr);
-
         const plist = parse(pliststr);
 
         if (typeof(plist['k4']) != "string")

@@ -1,4 +1,5 @@
-import { GDObject } from "./object";
+import { Level } from "../level";
+import { GameObject, RandomProps } from "./object";
 
 export enum PortalSpeed {
     HALF,
@@ -8,8 +9,16 @@ export enum PortalSpeed {
     FOUR
 }
 
-export class SpeedPortal extends GDObject {
+export class SpeedPortal extends GameObject {
     speed: PortalSpeed;
+
+    onInsert(level: Level): void {
+        level.speedManager.insertPortal(this);
+    }
+
+    onRemove(level: Level): void {
+        level.speedManager.removePortal(this);
+    }
 
     applyData(data: {}) {
         super.applyData(data);
@@ -37,7 +46,19 @@ export class SpeedPortal extends GDObject {
         }
     }
 
+    static generateRandomObject(props: RandomProps = {}): SpeedPortal {
+        props.ids = [200, 201, 202, 203, 1334];
+        return GameObject.generateRandomObject(props) as SpeedPortal;
+    }
+
+    static generateRandomObjects(count: number, props: RandomProps = {}): SpeedPortal[] {
+        const objs: SpeedPortal[] = [];
+        for (let i = 0; i < count; i++)
+            objs.push(this.generateRandomObject(props));
+        return objs;
+    }
+
     static isOfType(id: number): boolean {
-        return id >= 200 && id <= 203 || id == 1334;
+        return (id >= 200 && id <= 203) || id == 1334;
     }
 }

@@ -1,68 +1,67 @@
-import { EasingStyle, easingFunction } from "../../util/easing";
+import { TransformManager } from "../../transform/transform-manager";
 import { Vec2 } from "../../util/vec2";
-import { GDObject } from "../object";
-import { TriggerValue, ValueTrigger } from "./value-trigger";
+import { GameObject } from "../object";
+import { TransformTrigger } from "./transform-trigger";
 
-export class MoveTriggerValue extends TriggerValue {
-    public offset: Vec2;
-
-    constructor(offset: Vec2) {
-        super();
-        this.offset = offset;
-    }
-
-    static default(): MoveTriggerValue {
-        return new MoveTriggerValue(new Vec2(0, 0));
-    }
-
-    combineWith(value: TriggerValue): TriggerValue | null {
-        if (!(value instanceof MoveTriggerValue))
-            return null;
-
-        return new MoveTriggerValue(this.offset.add(value.offset));
-    }
-}
-
-export class MoveTrigger extends ValueTrigger {
+export class MoveTrigger extends TransformTrigger {
     moveX: number;
     moveY: number;
 
     lockToPlayerX: boolean;
     lockToPlayerY: boolean;
 
-    easing: EasingStyle;
-    
-    targetGroupId: number;
-
-    duration: number;
+    useTarget: boolean;
+    moveTargetId: number;
+    shouldMoveX: boolean;
+    shouldMoveY: boolean;
 
     applyData(data: {}): void {
         super.applyData(data);
 
-        this.moveX = GDObject.parse(data[28], 'number', 0);
-        this.moveY = GDObject.parse(data[29], 'number', 0);
+        this.moveX = GameObject.parse(data[28], 'number', 0);
+        this.moveY = GameObject.parse(data[29], 'number', 0);
 
-        this.lockToPlayerX = GDObject.parse(data[58], 'boolean', false);
-        this.lockToPlayerY = GDObject.parse(data[59], 'boolean', false);
+        this.lockToPlayerX = GameObject.parse(data[58], 'boolean', false);
+        this.lockToPlayerY = GameObject.parse(data[59], 'boolean', false);
 
-        this.easing = GDObject.parse(data[30], 'number', EasingStyle.NONE);
+        this.useTarget = GameObject.parse(data[100], 'boolean', false);
+        this.moveTargetId = GameObject.parse(data[71], 'number', 0);
 
-        this.targetGroupId = GDObject.parse(data[51], 'number', 0);
+        const targetCoordMask = GameObject.parse(data[101], 'number', false);
 
-        this.duration = GDObject.parse(data[10], 'number', 0);
+        this.shouldMoveX = true;
+        this.shouldMoveY = true;
+
+        if (targetCoordMask == 1)
+            this.shouldMoveY = false;
+        else if (targetCoordMask == 2)
+            this.shouldMoveX = false;
     }
 
-    public valueAfterDelta(_: TriggerValue, deltaTime: number, startTime: number): TriggerValue {
-        const time = deltaTime / this.duration;
-        let offset = new Vec2(0, 0);
-        
-        if (time >= 1 || isNaN(time))
-            offset = new Vec2(this.moveX, this.moveY);
-        else {
-            // TODO: Implement easing rate
-            const easingOffset = easingFunction(time, this.easing);
-            offset = new Vec2(easingOffset * this.moveX, easingOffset * this.moveY);
-        }
+    getDestinationOffset(startTime: number, manager: TransformManager): Vec2 {
+        if (!this.useTarget)
+            return new Vec2(this.moveX, this.moveY);
+
+        const srcPoint = manager.centerGroupPosAt(this.targetGroupId, startTime);
+        if (srcPoint == null)
+            return new Vec2(0, 0);
+
+        const dstPoint = manager.centerGroupPosAt(this.moveTargetId, startTime);
+        if (dstPoint == null)
+            return new Vec2(0, 0);
+
+        const offset = dstPoint.sub(srcPoint);
+        return new Vec2(this.shouldMoveX ? offset.x : 0, this.shouldMoveY ? offset.y : 0);
+    }
+
+    public offsetAfterDelta(deltaTime: number, startTime: number, manager: TransformManager): Vec2 {
+        let offset = this.getDestinationOffset(startTime, manager);
+
+        const change = this.getChange(deltaTime);
+        offset = offset.mul(new Vec2(change, change));
+
+        if (this.level == null)
+            return offset;
 
         let startPos: number;
         let afterPos: number;
@@ -71,17 +70,13 @@ export class MoveTrigger extends ValueTrigger {
             afterPos = this.level.posAt(startTime + deltaTime);
         }
 
-        if (this.lockToPlayerX && this.level)
+        if (this.lockToPlayerX)
             offset.x = afterPos - startPos;
 
-        if (this.lockToPlayerY && this.level)
+        if (this.lockToPlayerY)
             offset.y = this.level.gameStateAtPos(afterPos).approxYPos - this.level.gameStateAtPos(startPos).approxYPos;
 
-        return new MoveTriggerValue(offset);
-    }
-
-    public getDuration(): number {
-        return this.duration;
+        return offset;
     }
 
     static isOfType(id: number): boolean {

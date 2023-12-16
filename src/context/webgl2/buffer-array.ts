@@ -16,7 +16,7 @@ export class BufferArray {
     add(location: number, buffer: BufferObject, size: number, offset: number, stride: number, divisor: number = 0, type: number = -1) {
         if (location == -1) return;
 
-        let gl = this.gl;
+        const gl = this.gl;
 
         gl.bindBuffer(gl.ARRAY_BUFFER, buffer.vbo);
         gl.bindVertexArray(this.vao);
@@ -30,8 +30,14 @@ export class BufferArray {
     }
 
     use() {
-        let gl = this.gl;
+        const gl = this.gl;
 
         gl.bindVertexArray(this.vao);
+    }
+
+    destroy() {
+        const gl = this.gl;
+
+        gl.deleteVertexArray(this.vao);
     }
 }
