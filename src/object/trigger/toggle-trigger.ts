@@ -1,4 +1,4 @@
-import { GameObject } from "../object";
+import { GameObject, ObjectProperties, ObjectPropertyReader } from "../object";
 import { TriggerValue, ValueTrigger } from "./value-trigger";
 
 export class ToggleTriggerValue extends TriggerValue {
@@ -15,14 +15,14 @@ export class ToggleTriggerValue extends TriggerValue {
 }
 
 export class ToggleTrigger extends ValueTrigger {
-    activeGroup: boolean;
-    targetGroupId: number;
+    activeGroup: boolean = false;
+    targetGroupId: number = 0;
 
-    applyData(data: {}): void {
-        super.applyData(data);
+    applyProperties(rd: ObjectPropertyReader): void {
+        super.applyProperties(rd);
 
-        this.activeGroup   = GameObject.parse(data[56], 'boolean', false);
-        this.targetGroupId = GameObject.parse(data[51], 'number', 0);
+        this.activeGroup   = rd.bool(56, false);
+        this.targetGroupId = rd.number(51, 0);
     }
 
     getTriggerTrackId(): number {

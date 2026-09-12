@@ -62,7 +62,7 @@ export class LevelDecoder {
 
         const str = new TextDecoder().decode(array);
 
-        this.decodeGMDFormat(new TextEncoder().encode("<d>" + str + "</d>"));
+        this.decodeGMDFormat(new TextEncoder().encode("<d>" + str + "</d>").buffer);
     }
 
     decodeGMD2Format(_: ArrayBuffer) {

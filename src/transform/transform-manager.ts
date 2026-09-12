@@ -2,10 +2,10 @@ import { GameObject } from "../object/object";
 import { StopTriggerTrackList } from "../track/stop-trigger-track";
 import { GroupManager } from "../group-manager";
 import { TransformTrigger } from "../object/trigger/transform-trigger";
-import { TransformTrack } from "./transform-track";
 import { GroupTransform } from "./group-transform";
 import { Vec2 } from "../util/vec2";
 import { Level } from "../level";
+import { TransformAction, TransformSimulator } from "./transform";
 
 function isSameSet(set1: number[], set2: number[]): boolean {
     if (set1.length != set2.length)
@@ -22,16 +22,18 @@ export class TransformManager {
     level: Level;
     gmanager: GroupManager;
 
-    transformingGroupIds: Set<number>;
+    transformingGroupIds: Set<number> = new Set<number>();
 
-    transformGroups: { [id: number]: number[] };
-    lastTransformGroupIdx: number;
+    transformGroups: { [id: number]: number[] } = {};
+    lastTransformGroupIdx: number = 1;
 
-    centerGroupPositions: { [id: number]: Vec2 };
+    centerObjects: { [id: number]: GameObject } = {};
     
-    groupCombIdxToTransformIdx: { [id: number]: number };
+    groupCombIdxToTransformIdx: { [id: number]: number } = {};
 
-    tracks: { [id: number]: TransformTrack };
+    transformIdsPerGroupId: { [id: number]: number[] } = {};
+
+    simulator: TransformSimulator = new TransformSimulator(this);
 
     constructor(level: Level, manager: GroupManager) {
         this.level = level;
@@ -45,8 +47,8 @@ export class TransformManager {
         this.transformGroups = {};
         this.lastTransformGroupIdx = 1;
         this.groupCombIdxToTransformIdx = {};
-        this.centerGroupPositions = {};
-        this.tracks = {};
+        this.centerObjects = {};
+        this.transformIdsPerGroupId = {};
     }
 
     getTransformGroupIdx(groupIds: number[]): number | null {
@@ -60,6 +62,11 @@ export class TransformManager {
     addTransformGroup(groupIds: number[]): number {
         const id = this.lastTransformGroupIdx++;
         this.transformGroups[id] = groupIds.slice();
+        for (const gid of groupIds) {
+            if (!this.transformIdsPerGroupId[gid])
+                this.transformIdsPerGroupId[gid] = [];
+            this.transformIdsPerGroupId[gid].push(id);
+        }
         return id;
     }
 
@@ -67,32 +74,8 @@ export class TransformManager {
         return this.lastTransformGroupIdx;
     }
 
-    public updateStopActions(id: number | null = null) {
-        for (let tracks of Object.values(this.tracks))
-            tracks.updateStopActions(id);
-    }
-
     public valueAt(id: number, time: number): GroupTransform {
-        let track = this.tracks[id];
-        if (!track)
-            return new GroupTransform();
-
-        return track.valueAt(time);
-    }
-
-    public centerGroupPosAt(id: number, time: number): Vec2 | null {
-        const pos = this.centerGroupPositions[id];
-        if (!pos) return null;
-
-        return this.valueAt(id, time).transformPoint(pos);
-    }
-
-    public doesTransformBetween(id: number, start: number, end: number): boolean {
-        let track = this.tracks[id];
-        if (!track)
-            return false;
-
-        return track.doesTransformBetween(start, end);
+        return this.simulator.getGroupTransformAt(id, time);
     }
 
     stripNonTransformingGroupIds(groupIds: number[]): number[] {
@@ -106,9 +89,17 @@ export class TransformManager {
         return ret;
     }
 
-    loadAllTriggers() {
-        this.tracks = {};
+    activateTriggerAt(trigger: TransformTrigger, time: number) {
+        const action = new TransformAction(trigger, time);
 
+        const stopTime = this.level.stopTrackList.getTriggerStopTime(trigger, time);
+        if (stopTime)
+            action.setStopTime(stopTime);
+
+        this.simulator.addAction(action);
+    }
+
+    loadAllTriggers() {
         for (let obj of this.level.getObjects()) {
             if (!(obj instanceof TransformTrigger))
                 continue;
@@ -116,63 +107,72 @@ export class TransformManager {
             if (obj.spawnTriggered || obj.touchTriggered)
                 continue;
 
-            for (let [k, v] of Object.entries(this.transformGroups)) {
-                if (!v.includes(obj.targetGroupId)) continue;
-                const transformId = +k;
+            this.activateTriggerAt(obj, this.level.timeAt(obj.x));
+        }
+    }
 
-                let track = this.tracks[transformId];
-                if (track == null) {
-                    track = new TransformTrack(this.level, this, transformId);
-                    this.tracks[transformId] = track;
-                }
+    private fetchCenterGroupObjects() {
+        let objectsPerGroupId: { [id: number]: GameObject[] } = {};
+        let objectsPerParentGroupId: { [id: number]: GameObject[] } = {};
 
-                track.insertTrigger(obj, this.level.timeAt(obj.x));
+        for (let object of this.level.getObjects()) {
+            for (let gid of object.groups) {
+                if (!objectsPerGroupId[gid])
+                    objectsPerGroupId[gid] = [];
+                objectsPerGroupId[gid].push(object);
             }
+
+            for (let gid of object.parentGroups) {
+                if (!objectsPerParentGroupId[gid])
+                    objectsPerParentGroupId[gid] = [];
+                objectsPerParentGroupId[gid].push(object);
+            }
+
+            if (!(object instanceof TransformTrigger))
+                continue;
+
+            this.transformingGroupIds.add(object.targetGroupId);
         }
 
-        for (let v of Object.values(this.tracks))
-            v.init();
+        for (const [gid, objects] of Object.entries(objectsPerGroupId)) {
+            const pgObjects = objectsPerParentGroupId[+gid];
+            if (pgObjects && pgObjects.length == 1) {
+                this.centerObjects[+gid] = pgObjects[0];
+                continue;
+            }
+            
+            if (objects.length == 1)
+                this.centerObjects[+gid] = objects[0];
+        }
     }
 
     public prepare() {
         this.reset();
 
-        let groupObjectCount: { [id: number]: number } = {};
-
-        for (let obj of this.level.getObjects()) {
-            for (let gid of obj.groups) {
-                if (!groupObjectCount[gid]) {
-                    this.centerGroupPositions[gid] = new Vec2(obj.x, obj.y);
-                    groupObjectCount[gid] = 0;
-                }
-                groupObjectCount[gid]++;
-            }
-
-            if (!(obj instanceof TransformTrigger))
-                continue;
-
-            this.transformingGroupIds.add(obj.targetGroupId);
-        }
-
-        for (let k of Object.keys(this.centerGroupPositions)) {
-            if (groupObjectCount[+k] > 1)
-                delete this.centerGroupPositions[+k];
-        }
+        this.fetchCenterGroupObjects();
 
         const groupCombs = this.gmanager.rawGroupCombs;
 
-        for (let [k, v] of Object.entries(groupCombs)) {
-            const strippedComb = this.stripNonTransformingGroupIds(v);
-            if (strippedComb.length == 0) continue;
+        this.addTransformGroup([]);
+
+        for (let [groupCombId, groupIds] of Object.entries(groupCombs)) {
+            const strippedComb = this.stripNonTransformingGroupIds(groupIds);
 
             let idx = this.getTransformGroupIdx(strippedComb);
-            if (idx == null) {
+            if (idx == null)
                 idx = this.addTransformGroup(strippedComb);
-            }
 
-            this.groupCombIdxToTransformIdx[+k] = idx;
+            this.groupCombIdxToTransformIdx[+groupCombId] = idx;
         }
 
+        this.simulator.init();
+
         this.loadAllTriggers();
+
+        this.simulator.prepareActions();
+    }
+
+    public simulateUntil(time: number) {
+        this.simulator.simulateUntil(time);
     }
 }

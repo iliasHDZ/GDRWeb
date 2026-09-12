@@ -1,3 +1,6 @@
+import { Util } from "../../util/util";
+import { GameObject, ObjectProperties } from "../object";
+import { AlphaTriggerValue } from "./alpha-trigger";
 import { Trigger } from "./trigger";
 
 /*

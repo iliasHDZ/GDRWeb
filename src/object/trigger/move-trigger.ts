@@ -1,85 +1,111 @@
+import { GroupTransform } from "../../transform/group-transform";
+import { TransformAction, TransformInfo, TransformState } from "../../transform/transform";
 import { TransformManager } from "../../transform/transform-manager";
 import { Vec2 } from "../../util/vec2";
-import { GameObject } from "../object";
+import { GameObject, ObjectProperties, ObjectPropertyReader } from "../object";
 import { TransformTrigger } from "./transform-trigger";
 
 export class MoveTrigger extends TransformTrigger {
-    moveX: number;
-    moveY: number;
+    moveX: number = 0;
+    moveY: number = 0;
 
-    lockToPlayerX: boolean;
-    lockToPlayerY: boolean;
+    lockToPlayerX: boolean = false;
+    lockToPlayerY: boolean = false;
+    modX: number = 1;
+    modY: number = 1;
 
-    useTarget: boolean;
-    moveTargetId: number;
-    shouldMoveX: boolean;
-    shouldMoveY: boolean;
+    centerGroupId: number = 0;
+    moveTargetId: number = 0;
+    shouldMoveX: boolean = false;
+    shouldMoveY: boolean = false;
 
-    applyData(data: {}): void {
-        super.applyData(data);
+    targetMode: boolean = false;
+    directionMode: boolean = false;
 
-        this.moveX = GameObject.parse(data[28], 'number', 0);
-        this.moveY = GameObject.parse(data[29], 'number', 0);
+    directionModeDistance: number = 0;
 
-        this.lockToPlayerX = GameObject.parse(data[58], 'boolean', false);
-        this.lockToPlayerY = GameObject.parse(data[59], 'boolean', false);
+    applyProperties(rd: ObjectPropertyReader): void {
+        super.applyProperties(rd);
 
-        this.useTarget = GameObject.parse(data[100], 'boolean', false);
-        this.moveTargetId = GameObject.parse(data[71], 'number', 0);
+        this.moveX = rd.number(28, 0);
+        this.moveY = rd.number(29, 0);
 
-        const targetCoordMask = GameObject.parse(data[101], 'number', false);
+        this.lockToPlayerX = rd.bool(58, false);
+        this.lockToPlayerY = rd.bool(59, false);
+        this.modX = rd.number(143, 1);
+        this.modY = rd.number(144, 1);
 
-        this.shouldMoveX = true;
-        this.shouldMoveY = true;
+        const targetCoordMask = rd.number(101, 0);
+        this.shouldMoveX = targetCoordMask != 1;
+        this.shouldMoveY = targetCoordMask != 2;
 
-        if (targetCoordMask == 1)
-            this.shouldMoveY = false;
-        else if (targetCoordMask == 2)
-            this.shouldMoveX = false;
+        this.centerGroupId = rd.number(395, 0);
+        this.moveTargetId = rd.number(71, 0);
+
+        this.targetMode = rd.bool(100, false);
+        this.directionMode = rd.bool(394, false);
+
+        this.directionModeDistance = rd.number(396, 0);
     }
 
-    getDestinationOffset(startTime: number, manager: TransformManager): Vec2 {
-        if (!this.useTarget)
+    getOffset(state: TransformState): Vec2 {
+        const vectorMode = this.targetMode || this.directionMode;
+        if (!vectorMode)
             return new Vec2(this.moveX, this.moveY);
 
-        const srcPoint = manager.centerGroupPosAt(this.targetGroupId, startTime);
-        if (srcPoint == null)
+        const startGroupId = this.centerGroupId != 0 ? this.centerGroupId : this.targetGroupId;
+
+        const startPoint = state.getCenterGroupPosition(startGroupId);
+        if (startPoint == null)
             return new Vec2(0, 0);
 
-        const dstPoint = manager.centerGroupPosAt(this.moveTargetId, startTime);
-        if (dstPoint == null)
+        const endPoint = state.getCenterGroupPosition(this.moveTargetId);
+        if (endPoint == null)
             return new Vec2(0, 0);
 
-        const offset = dstPoint.sub(srcPoint);
-        return new Vec2(this.shouldMoveX ? offset.x : 0, this.shouldMoveY ? offset.y : 0);
-    }
-
-    public offsetAfterDelta(deltaTime: number, startTime: number, manager: TransformManager): Vec2 {
-        let offset = this.getDestinationOffset(startTime, manager);
-
-        const change = this.getChange(deltaTime);
-        offset = offset.mul(new Vec2(change, change));
-
-        if (this.level == null)
-            return offset;
-
-        let startPos: number;
-        let afterPos: number;
-        if (this.lockToPlayerX || this.lockToPlayerY) {
-            startPos = this.level.posAt(startTime);
-            afterPos = this.level.posAt(startTime + deltaTime);
+        let offset = endPoint.sub(startPoint);
+        if (this.directionMode) {
+            const length = offset.length;
+            if (length == 0)
+                return new Vec2(0, 0);
+            
+            offset = offset.divn(length).muln(this.directionModeDistance);
         }
 
-        if (this.lockToPlayerX)
-            offset.x = afterPos - startPos;
-
-        if (this.lockToPlayerY)
-            offset.y = this.level.gameStateAtPos(afterPos).approxYPos - this.level.gameStateAtPos(startPos).approxYPos;
-
-        return offset;
+        return new Vec2(this.shouldMoveX ? offset.x : 0, this.shouldMoveY ? offset.y : 0);
     }
 
     static isOfType(id: number): boolean {
         return id == 901;
+    }
+
+    public applyTransform(transform: GroupTransform, info: TransformInfo): void {
+        let lockX: number | null = null;
+        let lockY: number | null = null;
+
+        if (this.lockToPlayerX)
+            lockX = info.playerMovement.x;
+        if (this.lockToPlayerY)
+            lockY = info.playerMovement.y;
+
+        let offset: Vec2 = new Vec2(0, 0);
+
+        if (lockX == null || lockY == null)
+            offset = this.getOffset(info.state).muln(info.movementAmount);
+
+        offset = new Vec2(lockX ?? offset.x, lockY ?? offset.y);
+
+        transform.translate(offset);
+    }
+
+    public getDependentCenterGroupIds(): Set<number> {
+        const ret = new Set<number>();
+
+        if (this.targetMode || this.directionMode) {
+            ret.add(this.centerGroupId != 0 ? this.centerGroupId : this.targetGroupId);
+            ret.add(this.moveTargetId);
+        }
+
+        return ret;
     }
 }

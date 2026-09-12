@@ -1,10 +1,9 @@
 import { BaseColor } from "../../util/basecolor";
 import { CopyColor } from "../../util/copycolor";
 import { GDColor } from "../../util/gdcolor";
-import { HSVShift } from "../../util/hsvshift";
 import { MixedColor } from "../../util/mixedcolor";
 import { PlayerColor } from "../../util/playercolor";
-import { GameObject } from "../object";
+import { ObjectPropertyReader } from "../object";
 import { TriggerValue, ValueTrigger } from "./value-trigger";
 
 export class ColorTriggerValue extends TriggerValue {
@@ -20,90 +19,73 @@ export class ColorTriggerValue extends TriggerValue {
     }
 };
 
+const COLOR_TRIGGER_IDS: { [id: number]: number } = {
+    [29]:  1000,
+    [30]:  1001,
+    [104]: 1002,
+    [105]: 1004,
+    [221]: 1,
+    [717]: 2,
+    [718]: 3,
+    [743]: 4,
+    [744]: 1003,
+    [899]: 1,
+    [900]: 1,
+    [915]: 1,
+};
+
 export class ColorTrigger extends ValueTrigger {
-    r: number;
-    g: number;
-    b: number;
+    target: GDColor = BaseColor.white();
 
-    opacity: number;
-    blending: boolean;
+    colorChannelId: number = 1;
 
-    plrcol1: boolean;
-    plrcol2: boolean;
+    duration: number = 0;
 
-    copyId: number;
-    copyOpacity: boolean;
-    copyHsvShift: HSVShift;
+    applyProperties(rd: ObjectPropertyReader) {
+        super.applyProperties(rd);
 
-    color: number;
+        this.duration = rd.number(10, 0);
 
-    duration: number;
+        const r = rd.number(7, 255);
+        const g = rd.number(8, 255);
+        const b = rd.number(9, 255);
 
-    applyData(data: {}) {
-        super.applyData(data);
+        const blending = rd.bool(17, false);
+        const opacity  = rd.number(35, 1);
 
-        this.r = GameObject.parse(data[7], 'number', 255);
-        this.g = GameObject.parse(data[8], 'number', 255);
-        this.b = GameObject.parse(data[9], 'number', 255);
+        const plrcol1 = rd.bool(15, false);
+        const plrcol2 = rd.bool(16, false);
 
-        this.duration = GameObject.parse(data[10], 'number', 0);
+        const copyId = rd.number(50, 0);
+        const copyOpacity  = rd.bool(60, false);
+        const copyHsvShift = rd.hsvShift(49);
 
-        this.blending = GameObject.parse(data[17], 'boolean', false);
-        this.opacity  = GameObject.parse(data[35], 'number', 1);
+        if (copyId != 0)
+            this.target = new CopyColor(copyId, copyOpacity, copyHsvShift, opacity, blending);
+        else if (plrcol1 || plrcol2)
+            this.target = new PlayerColor(plrcol1 ? 0 : 1, opacity, blending);
+        else
+            this.target = new BaseColor(r, g, b, opacity, blending);
 
-        this.plrcol1 = GameObject.parse(data[15], 'boolean', false);
-        this.plrcol2 = GameObject.parse(data[16], 'boolean', false);
-
-        this.copyId = GameObject.parse(data[50], 'number', 0);
-        this.copyOpacity  = GameObject.parse(data[60], 'boolean', false);
-        this.copyHsvShift = HSVShift.parse(data[49]);
-
-        if (data[23])
-            this.color = +data[23];
-        else {
-            let color = 1;
-
-            switch (this.id) {
-                case 29:  color = 1000; break;
-                case 30:  color = 1001; break;
-                case 104: color = 1002; break;
-                case 105: color = 1004; break;
-                case 221: color = 1; break;
-                case 717: color = 2; break;
-                case 718: color = 3; break;
-                case 743: color = 4; break;
-                case 744: color = 1003; break;
-            }
-
-            this.color = color;
-        }
+        if (rd.has(23))
+            this.colorChannelId = rd.number(23, 1);
+        else
+            this.colorChannelId = COLOR_TRIGGER_IDS[this.id] ?? 1;
     }
 
     getTriggerTrackId(): number {
-        return this.color;
-    }
-
-    getColor(): GDColor {
-        if (this.copyId != 0)
-            return new CopyColor(this.copyId, this.copyOpacity, this.copyHsvShift, this.opacity, this.blending);
-        
-        if (this.plrcol1 || this.plrcol2)
-            return new PlayerColor(this.plrcol1 ? 0 : 1, this.opacity, this.blending);
-
-        return new BaseColor(this.r, this.g, this.b, this.opacity, this.blending);
+        return this.colorChannelId;
     }
 
     public valueAfterDelta(startValue: TriggerValue, deltaTime: number, _: number): TriggerValue {
-        let startCol: GDColor = new BaseColor(255, 255, 255, 1, false);
+        let startColor: GDColor = BaseColor.white();
         if (startValue instanceof ColorTriggerValue)
-            startCol = startValue.color;
-
-        const endCol = this.getColor();
+            startColor = startValue.color;
 
         if (deltaTime >= this.duration)
-            return new ColorTriggerValue(endCol);
+            return new ColorTriggerValue(this.target);
 
-        return new ColorTriggerValue(MixedColor.mix(startCol, endCol, deltaTime / this.duration));
+        return new ColorTriggerValue(MixedColor.mix(startColor, this.target, deltaTime / this.duration));
     }
 
     public getDuration(): number {
@@ -111,17 +93,6 @@ export class ColorTrigger extends ValueTrigger {
     }
 
     static isOfType(id: number): boolean {
-        return id == 29 ||
-               id == 30 ||
-               id == 104 ||
-               id == 105 ||
-               id == 221 ||
-               id == 717 ||
-               id == 718 ||
-               id == 743 ||
-               id == 744 ||
-               id == 899 ||
-               id == 900 ||
-               id == 915;
+        return typeof(COLOR_TRIGGER_IDS[id]) == 'number';
     }
 }

@@ -1,4 +1,4 @@
-import { SpriteCrop, SpriteCropInfo } from "../util/sprite";
+import { SpriteCrop, SpriteFrame } from "../util/sprite";
 import * as plist from "../ext/fast-plist";
 import { Vec2 } from "../util/vec2";
 
@@ -10,7 +10,7 @@ async function readFile(path: string) {
 export class PlistAtlasLoader {
     data: any;
     metadata: any;
-    format: number;
+    format: number = 0;
     
     constructor() {}
 
@@ -49,17 +49,21 @@ export class PlistAtlasLoader {
 
         let width: number, height: number;
         if (rotated) {
-            width  = obj[idx2] + 2;
-            height = obj[idx1] + 2;
+            // width  = obj[idx2] + 2;
+            // height = obj[idx1] + 2;
+            width  = obj[idx2];
+            height = obj[idx1];
         } else {
-            width  = obj[idx1] + 2;
-            height = obj[idx2] + 2;
+            // width  = obj[idx1] + 2;
+            // height = obj[idx2] + 2;
+            width  = obj[idx2];
+            height = obj[idx1];
         }
 
         return [width, height]
     }
 
-    private parseTexture(name: string, obj: any): SpriteCropInfo | null {
+    private parseTexture(name: string, obj: any): SpriteFrame | null {
         // absolute's texturepacker (i think) has a bug that adds '.' and '..' as textures
         if (name == '.' || name == '..')
             return null;
@@ -68,7 +72,7 @@ export class PlistAtlasLoader {
             return null;
 
         let crop: SpriteCrop;
-        let size: Vec2;
+        let originalSize: Vec2;
         let offset: Vec2;
         let rotated: boolean;
 
@@ -81,18 +85,14 @@ export class PlistAtlasLoader {
             throw new Error(`'rotated' or 'textureRotated' is not a boolean in texture '${name}'`);
         rotated = rot;
 
-        const [cropWidth, cropHeight] = this.parseDimensions(codedCrop, rotated, 2, 3);
-        crop = new SpriteCrop(codedCrop[0] - 1, codedCrop[1] - 1, cropWidth, cropHeight);
-
-        const [spriteWidth, spriteHeight] = this.parseDimensions(codedSize, rotated, 0, 1);
-        size = new Vec2(spriteWidth, spriteHeight);
-
+        crop = new SpriteCrop(codedCrop[0], codedCrop[1], codedCrop[2], codedCrop[3]);
+        originalSize = new Vec2(codedSize[0], codedSize[1]);
         offset = new Vec2(codedOffset[0], codedOffset[1]);
 
-        return new SpriteCropInfo(name, crop, size, offset, rotated);
+        return new SpriteFrame(name, crop, originalSize, offset, rotated);
     }
 
-    async load(path: string, sheetnum = 0): Promise<{ [key: string]: SpriteCropInfo }> {
+    async load(path: string, sheetnum = 0): Promise<{ [key: string]: SpriteFrame }> {
         this.data = plist.parse(await readFile(path));
         
         if (typeof(this.data.frames) != 'object')
@@ -108,10 +108,10 @@ export class PlistAtlasLoader {
 
         this.format = this.metadata.format;
 
-        let ret: {[key: string]: SpriteCropInfo} = {};
+        let ret: {[key: string]: SpriteFrame} = {};
 
         for (let [k, v] of Object.entries(this.data.frames)) {
-            const sprite: SpriteCropInfo | null = this.parseTexture(k, v);
+            const sprite: SpriteFrame | null = this.parseTexture(k, v);
             if (sprite == null)
                 continue;
 

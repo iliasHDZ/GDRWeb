@@ -1,3 +1,4 @@
+import { Renderer } from "../renderer";
 import { Vec2 } from "./vec2";
 
 function parseVec(str: string) {
@@ -10,8 +11,6 @@ export class SpriteCrop {
     public y: number;
     public w: number;
     public h: number;
-
-    public id: number;
 
     constructor(x: number, y: number, w: number, h: number) {
         this.x = x;
@@ -30,8 +29,7 @@ export class SpriteCrop {
             a.x  == b.x &&
             a.y  == b.y &&
             a.w  == b.w &&
-            a.h  == b.h &&
-            a.id == b.id
+            a.h  == b.h
         );
     }
 
@@ -49,23 +47,35 @@ export class SpriteCrop {
     }
 }
 
-export class SpriteCropInfo {
+export class SpriteFrame {
     public name: string;
-    public sheet: number;
-    public crop: SpriteCrop;
-    public size: Vec2;
+    public sheet: number = 0;
+
+    public cropSize: Vec2;
+    public originalSize: Vec2;
     public offset: Vec2;
+
+    public crop: SpriteCrop;
+    public originalSizeInPixels: Vec2;
+    public offsetInPixels: Vec2;
+
     public rotated: boolean;
 
-    constructor(name: string, crop: SpriteCrop, size: Vec2, offset: Vec2, rotated: boolean) {
+    constructor(name: string, crop: SpriteCrop, originalSize: Vec2, offset: Vec2, rotated: boolean) {
         this.name = name;
+
+        this.cropSize = Renderer.pixelsToPoints(new Vec2(crop.w, crop.h));
+        this.originalSize = Renderer.pixelsToPoints(originalSize);
+        this.offset = Renderer.pixelsToPoints(offset);
+        
         this.crop = crop;
-        this.size = size;
-        this.offset = offset;
+        this.originalSizeInPixels = originalSize;
+        this.offsetInPixels = offset;
+
         this.rotated = rotated;
     }
 
-    equals(sprite: SpriteCropInfo): boolean {
+    equals(sprite: SpriteFrame): boolean {
         return this.name == sprite.name;
     }
 }

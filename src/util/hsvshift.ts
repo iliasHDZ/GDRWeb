@@ -10,7 +10,7 @@ export function rgb2hsv(r: number, g: number, b: number): [number, number, numbe
 }
 
 export function hsv2rgb(h: number, s: number, v: number): [number, number, number] {                              
-    let f= (n,k=(n+h/60)%6) => v - v*s*Math.max( Math.min(k,4-k,1), 0);     
+    let f= (n: number,k=(n+h/60)%6) => v - v*s*Math.max( Math.min(k,4-k,1), 0);     
     return [f(5),f(3),f(1)];
 }
 

@@ -2,7 +2,7 @@ import { Level } from "../level";
 import { GameObject } from "../object/object";
 import { Trigger } from "../object/trigger/trigger";
 
-export class TriggerExecution {
+export class TriggerAction {
     time: number;
     trigger: Trigger;
 
@@ -23,16 +23,16 @@ export abstract class TriggerTrack {
         this.trackList = trackList;
     }
 
-    protected abstract getExecutions(): TriggerExecution[];
+    protected abstract getActions(): TriggerAction[];
 
-    protected abstract createExecution(trigger: Trigger, time: number): TriggerExecution | null;
+    protected abstract createAction(trigger: Trigger, time: number): TriggerAction | null;
 
-    public insertTrigger(trigger: Trigger, time: number): number {
-        const exec = this.createExecution(trigger, time);
+    public activateTriggerAt(trigger: Trigger, time: number): number {
+        const exec = this.createAction(trigger, time);
         if (exec == null)
-            return;
+            return 0;
 
-        const execs = this.getExecutions();
+        const execs = this.getActions();
 
         for (let i = 0; i < execs.length; i++) {
             if (execs[i].time > time) {
@@ -48,7 +48,7 @@ export abstract class TriggerTrack {
     }
 
     public removeTrigger(trigger: Trigger): number | null {
-        const execs = this.getExecutions();
+        const execs = this.getActions();
 
         let idx: number | null = null;
         for (let i = 0; i < execs.length; i++) {
@@ -88,7 +88,7 @@ export abstract class TriggerTrackList {
         if (!tracks[id])
             tracks[id] = this.createTrack(id);
 
-        tracks[id].insertTrigger(trigger, time);
+        tracks[id].activateTriggerAt(trigger, time);
     }
 
     public insertTrigger(trigger: Trigger, time: number) {

@@ -1,18 +1,18 @@
 import { Level } from "../..";
 import { TriggerTrack } from "../../track/trigger-track";
-import { GameObject } from "../object";
+import { GameObject, ObjectProperties, ObjectPropertyReader } from "../object";
 
 export abstract class Trigger extends GameObject {
-    spawnTriggered: boolean;
-    touchTriggered: boolean;
+    spawnTriggered: boolean = false;
+    touchTriggered: boolean = false;
 
     tracks: TriggerTrack[] = [];
 
-    applyData(data: {}) {
-        super.applyData(data);
+    applyProperties(rd: ObjectPropertyReader) {
+        super.applyProperties(rd);
 
-        this.spawnTriggered = GameObject.parse(data[62], 'boolean', false);
-        this.touchTriggered = GameObject.parse(data[11], 'boolean', false);
+        this.spawnTriggered = rd.bool(62, false);
+        this.touchTriggered = rd.bool(11, false);
     }
 
     addTrack(track: TriggerTrack): void {

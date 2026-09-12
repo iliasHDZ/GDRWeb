@@ -1,11 +1,11 @@
-import { Level } from ".";
+import { Level, ValueTrigger } from ".";
 import { ColorChannel } from "./level";
-import { GameObject } from "./object/object";
+import { GameObject, ObjectPropertyReader } from "./object/object";
 import { ColorTrigger, ColorTriggerValue } from "./object/trigger/color-trigger";
 import { PulseTargetType, PulseTrigger, PulseTriggerValue } from "./object/trigger/pulse-trigger";
 import { Trigger } from "./object/trigger/trigger";
 import { TriggerTrackList } from "./track/trigger-track";
-import { ValueTriggerTrack, ValueTriggerTrackList } from "./track/value-trigger-track";
+import { ValueTriggerAction, ValueTriggerTrack, ValueTriggerTrackList } from "./track/value-trigger-track";
 import { BaseColor } from "./util/basecolor";
 import { Color } from "./util/color";
 import { CopyColor } from "./util/copycolor";
@@ -13,11 +13,25 @@ import { GDColor } from "./util/gdcolor";
 import { HSVShift, hsv2rgb, rgb2hsv } from "./util/hsvshift";
 import { PlayerColor } from "./util/playercolor";
 
+interface BlendingStatesSection {
+    startTime: number;
+    states: { [channel: number]: boolean };
+};
+
+function copyBlendingStates(obj: { [channel: number]: boolean }): { [channel: number]: boolean } {
+    const ret: { [channel: number]: boolean } = {};
+    for (const [k, v] of Object.entries(obj))
+        ret[+k] = v;
+    return ret;
+}
+
 export class ColorManager {
     private colorTrackList: ValueTriggerTrackList;
     private pulseTrackList: ValueTriggerTrackList;
 
     private level: Level;
+
+    public blendingStates: BlendingStatesSection[] = [];
 
     constructor(level: Level) {
         this.level = level;
@@ -31,23 +45,25 @@ export class ColorManager {
             return;
 
         let psplit = str.split('_');
-        let props  = {};
+        let props: { [_: number]: string } = {};
 
         for (let p = 0; p < psplit.length; p += 2)
             props[+psplit[p]] = psplit[p + 1];
 
-        let r = GameObject.parse(props[1], 'number', 255);
-        let g = GameObject.parse(props[2], 'number', 255);
-        let b = GameObject.parse(props[3], 'number', 255);
+        const rd = new ObjectPropertyReader(props);
 
-        let plr = GameObject.parse(props[4], 'number', -1);
-        let blending = GameObject.parse(props[5], 'boolean', false);
+        let r = rd.number(1, 255);
+        let g = rd.number(2, 255);
+        let b = rd.number(3, 255);
 
-        let id = GameObject.parse(props[6], 'number', 1);
-        let a = GameObject.parse(props[7], 'number', 1);
+        let plr = rd.number(4, -1);
+        let blending = rd.bool(5, false);
 
-        let copyId = GameObject.parse(props[9], 'number', 0);
-        let copyOpacity = GameObject.parse(props[17], 'boolean', 0);
+        let id = rd.number(6, 1);
+        let a = rd.number(7, 1);
+
+        let copyId = rd.number(9, 0);
+        let copyOpacity = rd.bool(7, false);
         let copyHsvShift = HSVShift.parse(props[10]);
 
         let color: GDColor;
@@ -60,6 +76,57 @@ export class ColorManager {
             color = new BaseColor(r, g, b, a, blending);
 
         this.setStartColor(id, color);
+    }
+
+    public calculateBlendingStates() {
+        const colorActions: ValueTriggerAction[] = [];
+
+        for (const track of Object.values(this.colorTrackList.tracks))
+            for (const action of track.actions)
+                colorActions.push(action);
+
+        colorActions.sort((a, b) => a.time - b.time);
+
+        const blendingStates: { [channel: number]: boolean } = {};
+
+        for (let i = 1; i < +ColorChannel.COUNT; i++) {
+            blendingStates[i] = false;
+            if (this.colorTrackList.tracks[i])
+                blendingStates[i] = (this.colorTrackList.tracks[i].startValue as ColorTriggerValue).color.blending;
+        }
+
+        this.blendingStates.push({startTime: -9999999, states: copyBlendingStates(blendingStates)});
+
+        let lastTime: number = -9999999;
+
+        for (const action of colorActions) {
+            const trigger = action.trigger as ColorTrigger;
+
+            const isTargetBlending = trigger.target.blending;
+
+            if (blendingStates[trigger.colorChannelId] == isTargetBlending)
+                continue;
+            blendingStates[trigger.colorChannelId] = isTargetBlending;
+
+            console.log(`Color channel ${trigger.colorChannelId} changes to ${isTargetBlending ? 'blending' : 'normal'} at ${action.time}s`);
+
+            let section: BlendingStatesSection;
+            if (action.time > lastTime) {
+                section = { startTime: action.time, states: {} };
+                this.blendingStates.push(section);
+            } else
+                section = this.blendingStates[this.blendingStates.length - 1];
+            section.states = copyBlendingStates(blendingStates);
+            lastTime = action.time;
+        }
+    }
+
+    public getBlendingStatesIdAtTime(time: number): number {
+        for (let i = 0; i < this.blendingStates.length; i++) {
+            if (this.blendingStates[i].startTime > time)
+                return Math.max(0, i - 1);
+        }
+        return this.blendingStates.length - 1;
     }
 
     public updateStopActions(id: number | null = null) {
@@ -136,16 +203,16 @@ export class ColorManager {
     }
 
     public isObjectBlending(object: GameObject): boolean {
-        const track = this.colorTrackList.get(object.baseCol);
+        const track = this.colorTrackList.get(object.baseColorChannel);
         if (track == null || !(track instanceof ValueTriggerTrack))
             return false;
 
-        const exec = track.lastExecutionLeftOf(object.x);
-        if (exec != null) {
-            if (!(exec.trigger instanceof ColorTrigger))
+        const action = track.lastActionLeftOf(object.x);
+        if (action != null) {
+            if (!(action.trigger instanceof ColorTrigger))
                 return false;
 
-            return exec.trigger.blending;
+            return action.trigger.target.blending;
         }
 
         if (!(track.startValue instanceof ColorTriggerValue))

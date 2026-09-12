@@ -3,7 +3,7 @@ import { PulseList } from "../../pulse/pulse-list";
 import { Color } from "../../util/color";
 import { HSVShift } from "../../util/hsvshift";
 import { Util } from "../../util/util";
-import { GameObject } from "../object";
+import { GameObject, ObjectProperties, ObjectPropertyReader } from "../object";
 import { TriggerValue, ValueTrigger } from "./value-trigger";
 
 export class PulseTriggerValue extends TriggerValue {
@@ -75,52 +75,52 @@ export enum PulseTargetType {
 };
 
 export class PulseTrigger extends ValueTrigger {
-    r: number;
-    g: number;
-    b: number;
+    r: number = 255;
+    g: number = 255;
+    b: number = 255;
 
-    pulseMode: PulseMode;
-    targetType: PulseTargetType;
+    pulseMode: PulseMode = PulseMode.HSV;
+    targetType: PulseTargetType = PulseTargetType.GROUP;
 
-    fadeIn: number;
-    hold: number;
-    fadeOut: number;
+    fadeIn: number  = 0;
+    hold: number    = 0;
+    fadeOut: number = 0;
 
-    pulseHsv: HSVShift;
+    pulseHsv: HSVShift = new HSVShift();
 
     /*
     Target Color Channel ID when targetType = PulseTargetType.CHANNEL
     Target Group ID         when targetType = PulseTargetType.GROUP
     */
-    targetId: number;
+    targetId: number = 0;
 
-    baseOnly: boolean;
-    detailOnly: boolean;
+    baseOnly: boolean = false;
+    detailOnly: boolean = false;
 
-    duration: number;
+    duration: number = 0;
 
-    applyData(data: {}) {
-        super.applyData(data);
+    applyProperties(rd: ObjectPropertyReader) {
+        super.applyProperties(rd);
 
-        this.r = GameObject.parse(data[7], 'number', 255);
-        this.g = GameObject.parse(data[8], 'number', 255);
-        this.b = GameObject.parse(data[9], 'number', 255);
+        this.r = rd.number(7, 255);
+        this.g = rd.number(8, 255);
+        this.b = rd.number(9, 255);
 
-        this.duration = GameObject.parse(data[10], 'number', 0);
+        this.duration = rd.number(10, 0);
 
-        this.fadeIn  = GameObject.parse(data[45], 'number', 0);
-        this.hold    = GameObject.parse(data[46], 'number', 0);
-        this.fadeOut = GameObject.parse(data[47], 'number', 0);
+        this.fadeIn  = rd.number(45, 0);
+        this.hold    = rd.number(46, 0);
+        this.fadeOut = rd.number(47, 0);
 
-        this.pulseMode  = GameObject.parse(data[48], 'boolean', false) ? PulseMode.HSV : PulseMode.COLOR;
-        this.targetType = GameObject.parse(data[52], 'boolean', false) ? PulseTargetType.GROUP : PulseTargetType.CHANNEL;
+        this.pulseMode  = rd.bool(48, false) ? PulseMode.HSV : PulseMode.COLOR;
+        this.targetType = rd.bool(52, false) ? PulseTargetType.GROUP : PulseTargetType.CHANNEL;
 
-        this.pulseHsv = HSVShift.parse(data[49]);
+        this.pulseHsv = rd.hsvShift(49);
         
-        this.baseOnly   = GameObject.parse(data[65], 'boolean', false);
-        this.detailOnly = GameObject.parse(data[66], 'boolean', false);
+        this.baseOnly   = rd.bool(65, false);
+        this.detailOnly = rd.bool(66, false);
 
-        this.targetId = GameObject.parse(data[51], 'number', 0);
+        this.targetId = rd.number(51, 0);
     }
 
     getTriggerTrackId(): number {

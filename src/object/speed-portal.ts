@@ -1,5 +1,5 @@
 import { Level } from "../level";
-import { GameObject, RandomProps } from "./object";
+import { GameObject, ObjectPropertyReader, RandomProps } from "./object";
 
 export enum PortalSpeed {
     HALF,
@@ -10,7 +10,7 @@ export enum PortalSpeed {
 }
 
 export class SpeedPortal extends GameObject {
-    speed: PortalSpeed;
+    speed: PortalSpeed = PortalSpeed.ONE;
 
     onInsert(level: Level): void {
         level.speedManager.insertPortal(this);
@@ -20,29 +20,30 @@ export class SpeedPortal extends GameObject {
         level.speedManager.removePortal(this);
     }
 
-    applyData(data: {}) {
-        super.applyData(data);
+    applyProperties(rd: ObjectPropertyReader) {
+        super.applyProperties(rd);
 
-        let s: PortalSpeed;
+        let speed: PortalSpeed;
 
         switch (this.id) {
-            case 200:  s = PortalSpeed.HALF; break;
-            case 201:  s = PortalSpeed.ONE; break;
-            case 202:  s = PortalSpeed.TWO; break;
-            case 203:  s = PortalSpeed.THREE; break;
-            case 1334: s = PortalSpeed.FOUR; break;
+        case 200:  speed = PortalSpeed.HALF; break;
+        default:
+        case 201:  speed = PortalSpeed.ONE; break;
+        case 202:  speed = PortalSpeed.TWO; break;
+        case 203:  speed = PortalSpeed.THREE; break;
+        case 1334: speed = PortalSpeed.FOUR; break;
         }
 
-        this.speed = s;
+        this.speed = speed;
     }
 
-    static getSpeed(s: PortalSpeed): number {
-        switch (s) {
-            case PortalSpeed.HALF:  return 251.16;
-            case PortalSpeed.ONE:   return 311.58;
-            case PortalSpeed.TWO:   return 387.42;
-            case PortalSpeed.THREE: return 468.00;
-            case PortalSpeed.FOUR:  return 576.00;
+    static getSpeed(speed: PortalSpeed): number {
+        switch (speed) {
+        case PortalSpeed.HALF:  return 251.16;
+        case PortalSpeed.ONE:   return 311.58;
+        case PortalSpeed.TWO:   return 387.42;
+        case PortalSpeed.THREE: return 468.00;
+        case PortalSpeed.FOUR:  return 576.00;
         }
     }
 

@@ -1,462 +1,205 @@
-import { Level } from "..";
-import { GDObjectsInfo } from "../object/info/object-info";
-import { GameObject } from "../object/object";
+/*
+import { BatchBuffer, BufferedObjectBatch } from "./object-batch";
 import { TextureObject } from "../render/texture-object";
+import { ArrayType, BufferArrayBuilder } from "./buffer-array-builder";
+import { BufferObject } from "./buffer";
+import { VertexArray } from "./vertex-array";
+import { ShaderProgram } from "./program";
+import { Vec2 } from "../util/vec2";
+import { Level, Renderer } from "..";
 
-export interface ObjectBatch {
-    setRenderInfo(info: GDObjectsInfo): void;
-
-    insert(object: GameObject): void;
-
-    insertMultiple(object: GameObject[]): void;
-
-    remove(object: GameObject): void;
-
-    removeMultiple(object: GameObject[]): void;
-
-    update(object: GameObject): void;
+const attributes = {
+    ["aPos"]:       ArrayType.FLOAT2,
+    ["aObjPos"]:    ArrayType.FLOAT2,
+    ["aCol"]:       ArrayType.SHORT,
+    ["aFlags"]:     ArrayType.SHORT,
+    ["aHsv"]:       ArrayType.SHORT,
+    ["aTransform"]: ArrayType.SHORT,
+    ["aTex"]:       ArrayType.FLOAT2,
+    ["aGroups"]:    ArrayType.SHORT4,
+    ["aSCp"]:       ArrayType.SHORT4
 };
 
-export class ObjectBatchInstance {
-    public object: GameObject;
-    public address: number;
-    public size: number;
+/*
+const QUAD_VERTICIES = [
+    new Vec2( -0.5, -0.5 ),
+    new Vec2( -0.5,  0.5 ),
+    new Vec2(  0.5,  0.5 ),
+    new Vec2(  0.5,  0.5 ),
+    new Vec2(  0.5, -0.5 ),
+    new Vec2( -0.5, -0.5 )
+];
 
-    constructor(object: GameObject, size: number, address: number = 0) {
-        this.object  = object;
-        this.address = address;
-        this.size    = size;
-    }
+const QUAD_VERTICIES = [
+    new Vec2( 0, 0 ),
+    new Vec2( 0, 1 ),
+    new Vec2( 1, 1 ),
+    new Vec2( 1, 1 ),
+    new Vec2( 1, 0 ),
+    new Vec2( 0, 0 )
+];
 
-    nextAddress(): number {
-        return this.address + this.size;
-    }
+let coppa = 0;
 
-    equals(ins: ObjectBatchInstance): boolean {
-        return (
-            this.object == ins.object &&
-            this.size == ins.size
-        );
-    }
-};
+export class WebGLBatchBuffer extends BatchBuffer {
+    buffer: BufferObject;
+    bufferArray: VertexArray;
 
-export abstract class BatchBuffer {
-    public bufferSize: number;
+    static builder = new BufferArrayBuilder(attributes);
 
-    public pointer: number;
-
-    constructor(size: number) {
-        this.bufferSize = size;
-        this.pointer = 0;
-    }
-
-    abstract write(address: number, textures: TextureObject[]): void;
-
-    abstract copyTo(dstBuffer: BatchBuffer, dst: number, src: number, size: number): void;
-    
-    public seekRelative(change: number) {
-        this.pointer += change;
-    }
-
-    public ptrWrite(textures: TextureObject[]): void {
-        this.write(this.pointer, textures);
-        this.pointer += textures.length;
-    }
-
-    public ptrCopyTo(dstBuffer: BatchBuffer, size: number): void {
-        this.copyTo(dstBuffer, dstBuffer.pointer, this.pointer, size);
-        dstBuffer.pointer += size;
-        this.pointer += size;
-    }
-}
-
-export class TestBatchBuffer extends BatchBuffer {
-    buffer: TextureObject[];
-
-    constructor(size: number) {
+    constructor(gl: WebGL2RenderingContext, program: ShaderProgram, size: number) {
         super(size);
-        this.buffer = [];
-        for (let i = 0; i < size; i++)
-            this.buffer.push(null);
+        
+        this.buffer = BufferObject.createEmpty(gl, size * WebGLBatchBuffer.builder.instanceSize() * 6, true);
+        this.bufferArray = WebGLBatchBuffer.builder.createVertexArray(gl, program, this.buffer);
+    }
+
+    static addTextureObject(obj: TextureObject) {
+        let groups = obj.groups;
+        groups = groups.slice();
+
+        while (groups.length < 4)
+            groups.push(0);
+
+        if (groups.length > 4)
+            groups = groups.slice(0, 4);
+
+        const spriteFrame = obj.sprite.spriteFrame;
+
+        const crop = spriteFrame.crop;
+
+        let cropL = crop.x;
+        let cropT = crop.y;
+        let cropR: number, cropB: number;
+
+        let texCoords: Vec2[];
+        
+        if (spriteFrame.rotated) {
+            cropR = crop.x + crop.h;
+            cropB = crop.y + crop.w;
+
+            if (obj.sprite.flipX) [cropB, cropT] = [cropT, cropB];
+            if (obj.sprite.flipY) [cropL, cropR] = [cropR, cropL];
+
+            texCoords = [
+                new Vec2( cropL, cropT ),
+                new Vec2( cropR, cropT ),
+                new Vec2( cropR, cropB ),
+                new Vec2( cropR, cropB ),
+                new Vec2( cropL, cropB ),
+                new Vec2( cropL, cropT )
+            ];
+        } else {
+            cropR = crop.x + crop.w;
+            cropB = crop.y + crop.h;
+
+            if (obj.sprite.flipX) [cropL, cropR] = [cropR, cropL];
+            if (obj.sprite.flipY) [cropB, cropT] = [cropT, cropB];
+            
+            texCoords = [
+                new Vec2( cropL, cropB ),
+                new Vec2( cropL, cropT ),
+                new Vec2( cropR, cropT ),
+                new Vec2( cropR, cropT ),
+                new Vec2( cropR, cropB ),
+                new Vec2( cropL, cropB )
+            ];
+        }
+
+        const aSCp = [cropL, cropT, cropR, cropB];
+
+        let relativeOffset = obj.sprite.spriteOffset;
+
+        if (obj.sprite.flipX)
+            relativeOffset = new Vec2(-relativeOffset.x, relativeOffset.y);
+        if (obj.sprite.flipY)
+            relativeOffset = new Vec2(relativeOffset.x, -relativeOffset.y);
+
+        const offsetPosition = new Vec2(
+            relativeOffset.x + (obj.sprite.contentSize.x - spriteFrame.cropSize.x) / 2,
+            relativeOffset.y + (obj.sprite.contentSize.y - spriteFrame.cropSize.y) / 2
+        );
+
+        let verticies = [];
+
+        for (const vertex of QUAD_VERTICIES)
+            verticies.push(vertex.mul(spriteFrame.cropSize).add(offsetPosition));
+
+        let aFlags = 0;
+
+        aFlags |= obj.sprite.spriteFrame.sheet == 2 ? 1 : 0;
+        aFlags |= obj.black ? 2 : 0;
+        aFlags |= obj.trigger ? 4 : 0;
+
+        for (let i = 0; i < QUAD_VERTICIES.length; i++) {
+            WebGLBatchBuffer.builder.add({
+                aPos: obj.model.transform(verticies[i]).buffer(),
+                aObjPos: obj.objectPos.buffer(),
+                aCol: obj.color,
+                aFlags,
+                aTex: texCoords[i].buffer(),
+                aGroups: groups,
+                aTransform: obj.transformId,
+                aHsv: obj.hsvId,
+                aSCp
+            });
+        }
+
+        coppa++;
+    }
+
+    static writeTexturesToBuilder(textures: TextureObject[]) {
+        WebGLBatchBuffer.builder.clear();
+        for (let tex of textures) {
+            WebGLBatchBuffer.addTextureObject(tex);
+        }
     }
 
     write(address: number, textures: TextureObject[]): void {
-        if (address + textures.length > this.bufferSize) {
-            console.error("Writing goes out of buffer bounds");
-            return;
-        }
+        WebGLBatchBuffer.writeTexturesToBuilder(textures);
 
-        for (let i = 0; i < textures.length; i++)
-            this.buffer[address + i] = textures[i];
+        WebGLBatchBuffer.builder.writeToBuffer(this.buffer, address);
     }
 
     copyTo(dstBuffer: BatchBuffer, dst: number, src: number, size: number): void {
-        if (!(dstBuffer instanceof TestBatchBuffer))  {
-            console.error("Copy: Destination buffer is not instance of TestBatchBuffer");
+        if (!(dstBuffer instanceof WebGLBatchBuffer))  {
+            console.error("Copy: Destination buffer is not instance of WebGLBatchBuffer");
             return;
         }
 
-        if (dst + size > dstBuffer.bufferSize) {
-            console.error("Writing goes out of buffer bounds");
-            return;
-        }
+        WebGLBatchBuffer.builder.copy(this.buffer, dstBuffer.buffer, src, dst, size);
+    }
 
-        if (src + size > this.bufferSize) {
-            console.error("Reading goes out of buffer bounds");
-            return;
-        }
-
-        for (let i = 0; i < size; i++) {
-            dstBuffer.buffer[dst + i] = this.buffer[src + i];
-        }
+    destroy() {
+        this.bufferArray.destroy();
+        this.buffer.destroy();
     }
 };
 
-export abstract class BufferedObjectBatch implements ObjectBatch {
-    renderInfo: GDObjectsInfo;
+export class WebGLObjectBatch extends BufferedObjectBatch {
+    gl: WebGL2RenderingContext;
+    program: ShaderProgram;
 
-    instances: ObjectBatchInstance[];
-
-    buffer: BatchBuffer | null = null;
-
-    level: Level;
-
-    constructor(level: Level) {
-        this.level = level;
-        this.instances = [];
-    }
-
-    abstract createBuffer(size: number): BatchBuffer;
-
-    abstract destroyBuffer(buffer: BatchBuffer): void;
-
-    getAddressAtIndex(index: number) {
-        return index == 0 ? 0 : this.instances[index - 1].nextAddress();
-    }
-
-    getSizeOfInstances(insArray: ObjectBatchInstance[]): number {
-        let res = 0;
-        for (let ins of insArray)
-            res += ins.size;
-
-        return res;
-    }
-
-    correctAddressesSinceIndex(index: number, address?: number) {
-        let addr = address ?? this.getAddressAtIndex(index);
-
-        for (; index < this.instances.length; index++) {
-            this.instances[index].address = addr;
-            addr += this.instances[index].size;
-        }
-    }
-
-    generateTexturesOfInstances(instances: ObjectBatchInstance[]): TextureObject[] {
-        let res: TextureObject[] = [];
-        for (let ins of instances) {
-            res = res.concat(ins.object.generateBatchObjects(this.level, this.renderInfo));
-        }
-
-        return res;
-    }
-
-    insertInstances(newInsArray: ObjectBatchInstance[]) {
-        const oldInsArray = this.instances;
-
-        let address = 0;
-        let secReadFrom: 'old' | 'new' | null = null;
-
-        let texObjArray: TextureObject[] = [];
-        let texSize: number = 0;
-
-        let oldInsIdx = 0;
-        let newInsIdx = 0;
-
-        const newBufferSize = (this.buffer?.bufferSize ?? 0) + this.getSizeOfInstances(newInsArray);
-
-        let resArray: ObjectBatchInstance[] = [];
+    constructor(level: Level, gl: WebGL2RenderingContext, program: ShaderProgram) {
+        super(level);
         
-        const oldBuffer = this.buffer;
-        const newBuffer = this.createBuffer(newBufferSize);
-
-        if (oldBuffer)
-            oldBuffer.pointer = 0;
-        newBuffer.pointer = 0;
-
-        while (oldInsIdx < oldInsArray.length || newInsIdx < newInsArray.length) {
-            const oldIns = oldInsArray[oldInsIdx];
-            const newIns = newInsArray[newInsIdx];
-
-            let ins: ObjectBatchInstance;
-            let readFrom: 'old' | 'new' | null = null;
-
-            let isOld = false;
-            if (oldIns && newIns)
-                isOld = GameObject.compareZOrder(oldIns.object, newIns.object) <= 0;
-            else if (oldIns)
-                isOld = true;
-
-            if (isOld) {
-                oldInsIdx++;
-                ins = oldIns;
-                readFrom = 'old';
-            } else {
-                newInsIdx++;
-                ins = newIns;
-                readFrom = 'new';
-            }
-
-            ins.address = address;
-            resArray.push(ins);
-
-            if (secReadFrom != null && secReadFrom != readFrom) {
-                if (oldBuffer && secReadFrom == 'old')
-                    oldBuffer.ptrCopyTo(newBuffer, texSize);
-                else
-                    newBuffer.ptrWrite(texObjArray);
-                
-                texObjArray = [];
-                texSize = 0;
-            }
-            secReadFrom = readFrom;
-
-            if (!oldBuffer || secReadFrom != 'old')
-                texObjArray = texObjArray.concat(ins.object.generateBatchObjects(this.level, this.renderInfo));
-
-            texSize += ins.size;
-            address += ins.size;
-        }
-
-        if (secReadFrom != null) {
-            if (oldBuffer && secReadFrom == 'old')
-                oldBuffer.ptrCopyTo(newBuffer, texSize);
-            else
-                newBuffer.ptrWrite(texObjArray);
-        }
-
-        if (oldBuffer)
-            this.destroyBuffer(oldBuffer);
-
-        this.instances = resArray;
-        this.buffer = newBuffer;
+        this.gl = gl;
+        this.program = program;
     }
 
-    removeInstances(objects: GameObject[]) {
-        if (!this.buffer)
-            return;
-
-        const oldInsArray = this.instances;
-
-        let address = 0;
-        let texSize = 0;
-
-        let remInsArray: ObjectBatchInstance[] = [];
-
-        for (let ins of oldInsArray) {
-            if (objects.includes(ins.object))
-                remInsArray.push(ins);
-        }
-
-        const newBufferSize = this.buffer.bufferSize - this.getSizeOfInstances(remInsArray);
-
-        let resArray: ObjectBatchInstance[] = [];
-        
-        const oldBuffer = this.buffer;
-        const newBuffer = this.createBuffer(newBufferSize);
-
-        oldBuffer.pointer = 0;
-        newBuffer.pointer = 0;
-
-        for (let ins of oldInsArray) {
-            if (remInsArray.includes(ins)) {
-                if (texSize != 0) {
-                    oldBuffer.ptrCopyTo(newBuffer, texSize);
-                }
-
-                oldBuffer.seekRelative(ins.size);
-                texSize = 0;
-            } else {
-                ins.address = address;
-                resArray.push(ins);
-
-                texSize += ins.size;
-                address += ins.size;
-            }
-        }
-        
-        if (texSize != 0) {
-            oldBuffer.ptrCopyTo(newBuffer, texSize);
-        }
-
-        this.destroyBuffer(oldBuffer);
-
-        this.instances = resArray;
-        this.buffer = newBuffer;
-    }
-
-    setRenderInfo(info: GDObjectsInfo) {
-        this.renderInfo = info;
-    }
-    
-    insert(object: GameObject) {
-        const size = object.batchObjectCount(this.renderInfo);
-        if (size <= 0)
-            return;
-
-        this.insertInstances([new ObjectBatchInstance(object, object.batchObjectCount(this.renderInfo))]);
-    }
-    
-    insertMultiple(objects: GameObject[]) {
-        if (!GameObject.areObjectsSortedByZOrder(objects))
-            GameObject.sortObjectsByZOrder(objects);
-
-        let insArray: ObjectBatchInstance[] = [];
-        for (let obj of objects) {
-            const size = obj.batchObjectCount(this.renderInfo);
-            if (size <= 0)
-                continue;
-
-            insArray.push(new ObjectBatchInstance(obj, size));
-        }
-
-        this.insertInstances(insArray);
-    }
-    
-    remove(object: GameObject) {
-        this.removeInstances([object]);
-    }
-    
-    removeMultiple(objects: GameObject[]) {
-        this.removeInstances(objects);
-    }
-
-    update(object: GameObject) {
-        let ins: ObjectBatchInstance | null = null;
-        for (let inss of this.instances) {
-            if (inss.object == object) {
-                ins = inss;
-                break;
-            }
-        }
-
-        if (ins == null) return;
-
-        this.buffer.pointer = ins.address;
-        this.buffer.ptrWrite(ins.object.generateBatchObjects(this.level, this.renderInfo));
-    }
-};
-
-export class TestBufferedObjectBatch extends BufferedObjectBatch {
     createBuffer(size: number): BatchBuffer {
-        return new TestBatchBuffer(size);
+        return new WebGLBatchBuffer(this.gl, this.program, size);
     }
 
     destroyBuffer(buffer: BatchBuffer): void {
-        console.log("Buffer destroyed!");
+        if (buffer instanceof WebGLBatchBuffer)
+            buffer.destroy();
     }
 
-    isValid(): boolean {
-        let objs: GameObject[] = [];
-        for (let ins of this.instances)
-            objs.push(ins.object);
-
-        if (!GameObject.areObjectsSortedByZOrder(objs)) {
-            console.log("✖ Instances are correctly sorted");
-            return false;
-        }
-
-        console.log("✔ Instances are correctly sorted");
-
-        let address = 0;
-        for (let ins of this.instances) {
-            if (ins.address != address) {
-                console.log("✖ Instances addresses are correctly set");
-                return false;
-            }
-
-            address += ins.size;
-        }
-
-        console.log("✔ Instances addresses are correctly set");
-        return true;
-    }
-
-    static haveSameResults(a: TestBufferedObjectBatch, b: TestBufferedObjectBatch): boolean {
-        console.log("Testing validity of A:");
-        if (!a.isValid()) return false;
-        console.log("Testing validity of B:");
-        if (!b.isValid()) return false;
-
-        const insArrayA = a.instances.slice();
-        const insArrayB = b.instances.slice();
-
-        const bufferA = a.buffer;
-        const bufferB = b.buffer;
-        if (!(bufferA instanceof TestBatchBuffer) || !(bufferB instanceof TestBatchBuffer))
-            return false;
-
-        for (let o of bufferA.buffer)
-            if (o == null) {
-                console.log("✖ Buffer A is completely filled");
-                return false;
-            }
-        console.log("✔ Buffer A is completely filled");
-
-        for (let o of bufferB.buffer)
-            if (o == null) {
-                console.log("✖ Buffer B is completely filled");
-                return false;
-            }
-        console.log("✔ Buffer B is completely filled");
-
-        while (insArrayA.length > 0) {
-            const insA = insArrayA[0];
-            
-            let insIdxB = 0;
-            let insB: ObjectBatchInstance | null = null;
-            for (; insIdxB < insArrayB.length; insIdxB++) {
-                if (insA.equals(insArrayB[insIdxB])) {
-                    insB = insArrayB[insIdxB];
-                    break;
-                }
-            }
-
-            if (insB == null) {
-                console.log("✖ A contains an instance that B does not contain:");
-                console.log(insA);
-                return false;
-            }
-
-            for (let i = 0; i < insA.size; i++) {
-                const texAIdx = insA.address + i;
-                const texBIdx = insB.address + i;
-
-                const texA = bufferA.buffer[texAIdx];
-                const texB = bufferB.buffer[texBIdx];
-
-                if (!texA.sameAs(texB)) {
-                    console.log("✖ Instance in A and instance in B have different texture objects:");
-                    console.log("Texture object in A at " + texAIdx);
-                    console.log(texA);
-                    console.log("Texture object in B at " + texBIdx);
-                    console.log(texB);
-                    return false;
-                }
-            }
-
-            insArrayA.splice(0, 1)
-            insArrayB.splice(insIdxB, 1);
-        }
-        console.log("✔ Tests succeded");
-
-        return true;
-    }
-
-    printLayering() {
-        let str = "";
-        for (let ins of this.instances) {
-            str += `id: ${ins.object.id}, zl: ${ins.object.zlayer}, zo: ${ins.object.zorder}\n`;
-        }
-        console.log(str);
+    vertexCount(): number {
+        if (!this.buffer)
+            return 0;
+        return this.buffer.bufferSize * 6;
     }
 }
+*/

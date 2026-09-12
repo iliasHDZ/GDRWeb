@@ -1,5 +1,5 @@
-import { Renderer } from './renderer';
-import { WebGLContext } from './context/glcontext';
+import { Renderer, TextureQuality } from './renderer';
+import { RenderContext } from './context/glcontext';
 
 import { Level } from './level';
 
@@ -13,6 +13,7 @@ import { ColorTrigger } from './object/trigger/color-trigger';
 import { MoveTrigger } from './object/trigger/move-trigger';
 import { PulseTrigger } from './object/trigger/pulse-trigger';
 import { RotateTrigger } from './object/trigger/rotate-trigger';
+import { ScaleTrigger } from './object/trigger/scale-trigger';
 import { StopTrigger } from './object/trigger/stop-trigger';
 import { ToggleTrigger } from './object/trigger/toggle-trigger';
 
@@ -20,8 +21,9 @@ import { Vec2 } from './util/vec2';
 import { Color } from './util/color';
 
 export {
+    TextureQuality,
     Renderer,
-    WebGLContext,
+    RenderContext as WebGLContext,
 
     Level,
 
@@ -35,6 +37,7 @@ export {
     MoveTrigger,
     PulseTrigger,
     RotateTrigger,
+    ScaleTrigger,
     StopTrigger,
     ToggleTrigger,
     

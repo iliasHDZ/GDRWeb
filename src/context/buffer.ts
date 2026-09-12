@@ -1,0 +1,69 @@
+export class BufferObject {
+    gl: WebGL2RenderingContext;
+
+    vbo: WebGLBuffer;
+
+    public size = 0;
+
+    private target: number;
+
+    constructor(gl: WebGL2RenderingContext, target: number = gl.ARRAY_BUFFER) {
+        this.gl = gl;
+        this.vbo = gl.createBuffer();
+        this.target = target;
+    }
+
+    writeFull(data: ArrayBuffer, mutable: boolean = false) {
+        const gl = this.gl;
+
+        gl.bindBuffer(this.target, this.vbo);
+        gl.bufferData(this.target, data, mutable ? gl.DYNAMIC_DRAW : gl.STATIC_DRAW);
+        this.size = data.byteLength;
+    }
+
+    write(data: ArrayBuffer, offset: number) {
+        const gl = this.gl;
+
+        gl.bindBuffer(this.target, this.vbo);
+        gl.bufferSubData(this.target, offset, data);
+    }
+
+    allocate(size: number, mutable: boolean = false) {
+        const gl = this.gl;
+
+        gl.bindBuffer(this.target, this.vbo);
+        gl.bufferData(this.target, size, mutable ? gl.DYNAMIC_DRAW : gl.STATIC_DRAW);
+    }
+
+    static copy(src: BufferObject, dst: BufferObject, srcOffset: number, dstOffset: number, size: number) {
+        const gl = src.gl;
+
+        gl.bindBuffer(gl.COPY_READ_BUFFER,  src.vbo);
+        gl.bindBuffer(gl.COPY_WRITE_BUFFER, dst.vbo);
+        gl.copyBufferSubData(
+            gl.COPY_READ_BUFFER,
+            gl.COPY_WRITE_BUFFER,
+            srcOffset,
+            dstOffset,
+            size
+        );
+    }
+
+    static createEmpty(gl: WebGL2RenderingContext, size: number, mutable: boolean = false) {
+        const ret = new BufferObject(gl);
+        ret.allocate(size, mutable);
+        return ret;
+    }
+
+    static fromData(gl: WebGL2RenderingContext, data: ArrayBuffer): BufferObject {
+        const ret = new BufferObject(gl);
+        ret.writeFull(data);
+        return ret;
+    }
+
+    destroy() {
+        const gl = this.gl;
+
+        gl.deleteBuffer(this.vbo);
+    }
+}

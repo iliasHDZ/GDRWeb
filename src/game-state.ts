@@ -1,3 +1,3 @@
 export class GameState {
-    approxYPos: number;
+    approxYPos: number = 0;
 };

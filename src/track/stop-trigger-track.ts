@@ -1,9 +1,9 @@
 import { Level } from "../level";
 import { StopTrigger } from "../object/trigger/stop-trigger";
 import { Trigger } from "../object/trigger/trigger";
-import { TriggerExecution, TriggerTrack, TriggerTrackList } from "./trigger-track";
+import { TriggerAction, TriggerTrack, TriggerTrackList } from "./trigger-track";
 
-class StopTriggerExecution extends TriggerExecution {
+class StopTriggerExecution extends TriggerAction {
     constructor(trigger: StopTrigger, time: number) {
         super(trigger, time);
     }
@@ -17,11 +17,11 @@ export class StopTriggerTrack extends TriggerTrack {
         this.executions = [];
     }
 
-    protected getExecutions(): TriggerExecution[] {
+    protected getActions(): TriggerAction[] {
         return this.executions;
     }
 
-    protected createExecution(trigger: Trigger, time: number): TriggerExecution | null {
+    protected createAction(trigger: Trigger, time: number): TriggerAction | null {
         if (!(trigger instanceof StopTrigger))
             return null;
 
@@ -60,7 +60,7 @@ export class StopTriggerTrackList extends TriggerTrackList {
         return this.tracks[id].nextExecutionAfter(time);
     }
 
-    public triggerStoppedAt(trigger: Trigger, time: number): number | null {
+    public getTriggerStopTime(trigger: Trigger, time: number): number | null {
         let stoppedAt: number | null = null;
 
         for (let gid of trigger.groups) {

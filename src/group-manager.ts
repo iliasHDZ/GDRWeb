@@ -21,7 +21,7 @@ function isSameSet(set1: number[], set2: number[]): boolean {
 export class GroupState {
     opacity: number = 1;
     active: boolean = true;
-    pulseList: PulseList;
+    pulseList: PulseList = new PulseList();
     /*lastPulseTime: number = 0;
     pulseBaseColor: Color = new Color(0, 0, 0, 0);
     pulseDetailColor: Color = new Color(0, 0, 0, 0);*/
@@ -63,16 +63,16 @@ function removeItem<T>(array: T[], value: T) {
 export class GroupManager {
     // groupStates: { [id: number]: GroupState } = {};
 
-    doubleGroups: { [id: number]: [number, number] };
-    lastDoubleGroupId: number;
-    startDoubleGroupIds: number;
+    doubleGroups: { [id: number]: [number, number] } = {};
+    lastDoubleGroupId: number = 0;
+    startDoubleGroupIds: number = 0;
     
-    groupCombs: { [comb: number]: number[] };
+    groupCombs: { [comb: number]: number[] } = {};
 
-    rawGroupCombs: { [comb: number]: number[] };
-    lastGroupCombIdx: number;
+    rawGroupCombs: { [comb: number]: number[] } = {};
+    lastGroupCombIdx: number = 0;
 
-    largestGroupId: number;
+    largestGroupId: number = 0;
 
     alphaTrackList: ValueTriggerTrackList;
     toggleTrackList: ValueTriggerTrackList;
@@ -82,10 +82,15 @@ export class GroupManager {
 
     constructor(level: Level) {
         this.level = level;
+        this.alphaTrackList  = new ValueTriggerTrackList(this.level, AlphaTriggerValue.default());
+        this.toggleTrackList = new ValueTriggerTrackList(this.level, ToggleTriggerValue.default());
+        this.pulseTrackList  = new ValueTriggerTrackList(this.level, PulseTriggerValue.default());
+
         this.reset();
     }
 
     reset() {
+        // Yeah duplicate code I know, not sure what the best way is to fix this
         this.alphaTrackList  = new ValueTriggerTrackList(this.level, AlphaTriggerValue.default());
         this.toggleTrackList = new ValueTriggerTrackList(this.level, ToggleTriggerValue.default());
         this.pulseTrackList  = new ValueTriggerTrackList(this.level, PulseTriggerValue.default());
@@ -114,7 +119,7 @@ export class GroupManager {
     }
 
     getGroupCombination(idx: number | null): number[] {
-        if (idx == null)
+        if (idx == null || !this.groupCombs[idx])
             return [];
 
         return this.groupCombs[idx];
@@ -160,9 +165,6 @@ export class GroupManager {
 
     loadGroups() {
         for (let obj of this.level.getObjects()) {
-            if (obj.groups.length == 0)
-                continue;
-
             for (let gid of obj.groups) {
                 if (gid > this.largestGroupId)
                     this.largestGroupId = gid;

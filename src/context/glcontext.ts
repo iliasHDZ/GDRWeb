@@ -1,47 +1,34 @@
-import { ContextRenderOptions, RenderContext } from './context';
 import { Color } from './../util/color';
-import { ObjectBatch } from './object-batch';
-import { ShaderProgram } from './webgl2/program';
-import { BufferObject } from './webgl2/buffer';
-import { BufferArray } from './webgl2/buffer-array';
-import { ArrayType, BufferArrayBuilder } from './webgl2/buffer-array-builder';
+import { ShaderProgram } from './program';
+import { BufferObject } from './buffer';
+import { VertexArray } from './vertex-array';
+import { ArrayType, BufferArrayBuilder } from './buffer-array-builder';
 import { Mat3 } from '../util/mat3';
 import { Vec2 } from '../util/vec2';
-import { SpriteCrop, SpriteCropInfo } from '../util/sprite';
+import { SpriteCrop, SpriteFrame } from '../util/sprite';
 import { GroupState } from '../group-manager';
 import { HSVShift } from '../util/hsvshift';
 import { Profiler } from '../profiler';
 import { TextureObject } from '../render/texture-object';
 import { PulseColorEntry, PulseHSVEntry } from '../pulse/pulse-entry';
 import { GroupTransform } from '../transform/group-transform';
-import { WebGLBatchBuffer, WebGLObjectBatch } from './webgl2/object-batch';
-import { Level } from '..';
 
 declare const VERT_SOURCE: string;
 declare const FRAG_SOURCE: string;
 declare const QUAD_VERT_SOURCE: string;
 declare const QUAD_FRAG_SOURCE: string;
+declare const GRID_FRAG_SOURCE: string;
 
 // @ts-ignore
-import VERT_SOURCE from "./webgl2/shaders/objects.vert?raw";
+import VERT_SOURCE from "./shaders/objects.vert?raw";
 // @ts-ignore
-import FRAG_SOURCE from "./webgl2/shaders/objects.frag?raw";
+import FRAG_SOURCE from "./shaders/objects.frag?raw";
 // @ts-ignore
-import QUAD_VERT_SOURCE from "./webgl2/shaders/quad.vert?raw";
+import QUAD_VERT_SOURCE from "./shaders/quad.vert?raw";
 // @ts-ignore
-import QUAD_FRAG_SOURCE from "./webgl2/shaders/quad.frag?raw";
-
-const attributes = {
-    ["aPos"]: ArrayType.FLOAT2,
-    ["aObjPos"]: ArrayType.FLOAT2,
-    ["aCol"]: ArrayType.SHORT,
-    ["aFlags"]: ArrayType.SHORT,
-    ["aHsv"]: ArrayType.SHORT,
-    ["aTransform"]: ArrayType.SHORT,
-    ["aTex"]: ArrayType.FLOAT2,
-    ["aGroups"]: ArrayType.SHORT4,
-    ["aSCp"]: ArrayType.SHORT4
-};
+import QUAD_FRAG_SOURCE from "./shaders/quad.frag?raw";
+// @ts-ignore
+import GRID_FRAG_SOURCE from "./shaders/grid.frag?raw";
 
 const GROUP_STATE_TEXTURE_WIDTH = 512;
 const FLOATS_PER_GROUP_STATE = 8;
@@ -57,13 +44,19 @@ const QUAD_VERTICES = new Float32Array([
      0.5, -0.5
 ]);
 
-export class WebGLContext extends RenderContext {
-    gl: WebGL2RenderingContext;
+export class ContextRenderOptions {
+    public hideTriggers: boolean = false;
+};
 
-    program: ShaderProgram;
+export class RenderContext {
+    gl?: WebGL2RenderingContext;
 
-    colors: number[];
-    colorsBlending: number[];
+    canvas: HTMLCanvasElement;
+
+    program?: ShaderProgram;
+
+    colors: number[] = [];
+    colorsBlending: number[] = [];
 
     groupStates: { [id: number]: GroupState } = {};
     objectHSVs: { [id: number]: HSVShift } = {};
@@ -73,33 +66,32 @@ export class WebGLContext extends RenderContext {
     lastHSVId: number = 0;
     lastTransformId: number = 0;
 
-    colorInfoTexture: WebGLTexture;
-    groupStateTexture: WebGLTexture;
-    objectHSVTexture: WebGLTexture;
-    pulseTexture: WebGLTexture;
-    transformTexture: WebGLTexture;
+    colorInfoTexture?: WebGLTexture;
+    groupStateTexture?: WebGLTexture;
+    objectHSVTexture?: WebGLTexture;
+    pulseTexture?: WebGLTexture;
+    transformTexture?: WebGLTexture;
 
     pulseTextureSelections: { [id: number]: [number, number] } = {};
 
-    quadShader: ShaderProgram;
-    quad: BufferArray;
+    quadShader?: ShaderProgram;
+    gridShader?: ShaderProgram;
+    quad?: VertexArray;
 
-    viewMatrix: Mat3;
+    viewMatrix: Mat3 = new Mat3();
 
-    /*
-    private texWidth: number;
-    private texHeight: number;
-    private texCount: number;
-    */
+    timerQueryExt: any = null;
+    timerQuery: WebGLQuery | null = null;
+
+    width: number = 0;
+    height: number = 0;
 
     constructor(canvas: HTMLCanvasElement) {
-        super();
-
-        this.canvas = canvas;
         this.gl = canvas.getContext('webgl2', {
-            premultipliedAlpha: true,
+            premultipliedAlpha: false,
             alpha: false
-        });
+        }) ?? undefined;
+        this.canvas = canvas;
 
         this.init();
     }
@@ -109,25 +101,31 @@ export class WebGLContext extends RenderContext {
     }
 
     setSize(width: number, height: number) {
-        this.gl.viewport(0, 0, width, height);
+        this.gl?.viewport(0, 0, width, height);
+        this.width  = width;
+        this.height = height;
     }
 
     setViewMatrix(view: Mat3) {
-        this.program.use();
-        this.program.uMat3('uView', view);
+        this.program?.use();
+        this.program?.uMat3('uView', view);
         this.viewMatrix = view;
     }
 
-    init() {
+    init(): boolean {
         let gl = this.gl;
-        let p  = new ShaderProgram(gl);
 
-        p.loadShader(gl.VERTEX_SHADER,   VERT_SOURCE);
-        p.loadShader(gl.FRAGMENT_SHADER, FRAG_SOURCE);
+        if (!gl)
+            return false;
 
-        p.link();
+        let program = new ShaderProgram(gl);
 
-        this.program = p;
+        program.loadShader(gl.VERTEX_SHADER,   VERT_SOURCE);
+        program.loadShader(gl.FRAGMENT_SHADER, FRAG_SOURCE);
+
+        program.link();
+
+        this.program = program;
 
         gl.enable(gl.BLEND);
         gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
@@ -142,25 +140,73 @@ export class WebGLContext extends RenderContext {
         for (let i = 0; i < 1011; i++)
             this.colorsBlending.push(0);
 
-        this.colorInfoTexture  = this.createInfoTexture();
-        this.groupStateTexture = this.createInfoTexture();
-        this.objectHSVTexture  = this.createInfoTexture();
-        this.pulseTexture      = this.createInfoTexture();
-        this.transformTexture  = this.createInfoTexture();
+        this.colorInfoTexture  = this.createInfoTexture() ?? undefined;
+        this.groupStateTexture = this.createInfoTexture() ?? undefined;
+        this.objectHSVTexture  = this.createInfoTexture() ?? undefined;
+        this.pulseTexture      = this.createInfoTexture() ?? undefined;
+        this.transformTexture  = this.createInfoTexture() ?? undefined;
+
+        if (
+            !this.colorInfoTexture ||
+            !this.groupStateTexture ||
+            !this.objectHSVTexture ||
+            !this.pulseTexture ||
+            !this.transformTexture
+        ) {
+            return false;
+        }
 
         this.quadShader = new ShaderProgram(gl);
         this.quadShader.loadShader(gl.VERTEX_SHADER,   QUAD_VERT_SOURCE);
         this.quadShader.loadShader(gl.FRAGMENT_SHADER, QUAD_FRAG_SOURCE);
         this.quadShader.link();
 
-        this.quad = new BufferArray(gl);
+        this.gridShader = new ShaderProgram(gl);
+        this.gridShader.loadShader(gl.VERTEX_SHADER,   QUAD_VERT_SOURCE);
+        this.gridShader.loadShader(gl.FRAGMENT_SHADER, GRID_FRAG_SOURCE);
+        this.gridShader.link();
+
+        this.quad = new VertexArray(gl);
         this.quad.add(
             this.quadShader.attrib('aPos'),
-            BufferObject.fromData(gl, QUAD_VERTICES),
+            BufferObject.fromData(gl, QUAD_VERTICES.buffer),
             2,
             0,
             2 * 4
         );
+
+        const ext = gl.getExtension('EXT_disjoint_timer_query_webgl2');
+        if (!ext) {
+            console.warn('Timer query extension not supported');
+        } else {
+            this.timerQueryExt = ext;
+            this.timerQuery = gl.createQuery();
+        }
+
+        return true;
+    }
+
+    beginTimerQuery() {
+        const gl = this.gl;
+        if (!gl || !this.timerQuery)
+            return;
+        gl.beginQuery(this.timerQueryExt.TIME_ELAPSED_EXT, this.timerQuery);
+    }
+
+    endTimerQuery(): number {
+        const gl = this.gl;
+        if (!gl || !this.timerQuery)
+            return -1;
+
+        gl.endQuery(this.timerQueryExt.TIME_ELAPSED_EXT);
+
+        const available = gl.getQueryParameter(this.timerQuery, gl.QUERY_RESULT_AVAILABLE);
+        const disjoint = gl.getParameter(this.timerQueryExt.GPU_DISJOINT_EXT);
+
+        if (available && !disjoint)
+            return gl.getQueryParameter(gl, gl.QUERY_RESULT) / 1000000;
+
+        return -1;
     }
 
     setColorChannel(channel: number, color: Color, blending: boolean) {
@@ -195,8 +241,9 @@ export class WebGLContext extends RenderContext {
             this.lastHSVId = hsvId;
     }
 
-    createInfoTexture(): WebGLTexture {
+    createInfoTexture(): WebGLTexture | null {
         let gl = this.gl;
+        if (!gl) return null;
 
         const ret = gl.createTexture();
         gl.bindTexture(gl.TEXTURE_2D, ret);
@@ -211,6 +258,7 @@ export class WebGLContext extends RenderContext {
 
     updateInfoTexture(buffer: Uint8Array, texture: WebGLTexture, width: number) {
         let gl = this.gl;
+        if (!gl) return;
 
         const height = Math.ceil(Math.ceil(buffer.length / 4) / width);
         const totalBytes = height * width * 4;
@@ -239,6 +287,7 @@ export class WebGLContext extends RenderContext {
 
     updateFloatInfoTexture(buffer: Float32Array, texture: WebGLTexture, width: number) {
         let gl = this.gl;
+        if (!gl) return;
 
         const height = Math.ceil(Math.ceil(buffer.length / 4) / width);
         const totalFloats = height * width * 4;
@@ -266,6 +315,9 @@ export class WebGLContext extends RenderContext {
     }
 
     updateGroupStateTexture() {
+        if (!this.groupStateTexture)
+            return;
+
         const fpgs = FLOATS_PER_GROUP_STATE;
 
         const size = Math.ceil(fpgs / 4) * (this.lastGroupId + 1);
@@ -291,6 +343,9 @@ export class WebGLContext extends RenderContext {
     }
 
     updateGroupTransformTexture() {
+        if (!this.transformTexture)
+            return;
+
         const fpgt = FLOATS_PER_GROUP_TRANSFORM;
 
         const size = Math.ceil(fpgt / 4) * (this.lastTransformId + 1);
@@ -318,7 +373,12 @@ export class WebGLContext extends RenderContext {
     }
 
     updateColorInfoTexture() {
+        if (!this.colorInfoTexture)
+            return;
+
         let gl = this.gl;
+        if (!gl)
+            return;
 
         let buffer = new Uint8Array(2 * 1011 * 4);
 
@@ -355,6 +415,9 @@ export class WebGLContext extends RenderContext {
     }
 
     updateHSVObjectTexture() {
+        if (!this.objectHSVTexture)
+            return;
+
         const bpoh = BYTES_PER_OBJECT_HSV;
 
         const size = Math.ceil(bpoh / 4) * (this.lastHSVId + 1);
@@ -373,6 +436,9 @@ export class WebGLContext extends RenderContext {
     }
 
     updatePulseTexture() {
+        if (!this.pulseTexture)
+            return;
+
         const bppe = 8;
 
         let count = 0;
@@ -417,6 +483,8 @@ export class WebGLContext extends RenderContext {
 
     clearColor(c: Color) {
         let gl = this.gl;
+        if (!gl)
+            return;
 
         gl.clearColor(c.r, c.g, c.b, c.a);
         gl.clear(gl.COLOR_BUFFER_BIT);
@@ -424,6 +492,8 @@ export class WebGLContext extends RenderContext {
 
     loadTexture(img: HTMLImageElement) {
         let gl = this.gl;
+        if (!gl)
+            return;
 
         let t = gl.createTexture();
         gl.bindTexture(gl.TEXTURE_2D, t);
@@ -443,81 +513,6 @@ export class WebGLContext extends RenderContext {
         );
 
         return t;
-    }
-
-    genQuadStructs(obj: TextureObject): any {
-        let groups = obj.groups;
-        groups = groups.slice();
-
-        while (groups.length < 4)
-            groups.push(0);
-
-        if (groups.length > 4)
-            groups = groups.slice(0, 4);
-
-        let r = [];
-
-        let q = [
-            new Vec2( -0.5, -0.5 ),
-            new Vec2( -0.5,  0.5 ),
-            new Vec2(  0.5,  0.5 ),
-            new Vec2(  0.5,  0.5 ),
-            new Vec2(  0.5, -0.5 ),
-            new Vec2( -0.5, -0.5 )
-        ];
-
-        const crop = obj.sprite.crop;
-
-        let t_l = crop.x,
-            t_r = crop.x + crop.w,
-            t_t = crop.y,
-            t_b = crop.y + crop.h;
-
-        let t: Vec2[];
-        
-        if (obj.sprite.rotated) {
-            t = [
-                new Vec2( t_r, t_t ),
-                new Vec2( t_l, t_t ),
-                new Vec2( t_l, t_b ),
-                new Vec2( t_l, t_b ),
-                new Vec2( t_r, t_b ),
-                new Vec2( t_r, t_t )
-            ];
-        } else {
-            t = [
-                new Vec2( t_l, t_b ),
-                new Vec2( t_l, t_t ),
-                new Vec2( t_r, t_t ),
-                new Vec2( t_r, t_t ),
-                new Vec2( t_r, t_b ),
-                new Vec2( t_l, t_b )
-            ];
-        }
-
-        const aSCp = [t_l, t_t, t_r, t_b];
-
-        let aFlags = 0;
-
-        aFlags |= obj.sprite.sheet == 2 ? 1 : 0;
-        aFlags |= obj.black ? 2 : 0;
-        aFlags |= obj.trigger ? 4 : 0;
-
-        for (let i = 0; i < q.length; i++) {
-            r.push({
-                aPos: obj.model.transform(q[i]).buffer(),
-                aObjPos: obj.objectPos.buffer(),
-                aCol: obj.color,
-                aFlags,
-                aTex: t[i].buffer(),
-                aGroups: groups,
-                aTransform: obj.transformId,
-                aHsv: obj.hsvId,
-                aSCp
-            });
-        }
-
-        return r;
     }
 
     genInstance(m: Mat3, c: Color, s: SpriteCrop): number[] {
@@ -547,23 +542,33 @@ export class WebGLContext extends RenderContext {
             count: c.objects.length * 6,
             array: builder.compile(this.gl, this.program)
         };
-    }*/
-
-    createObjectBatch(level: Level): ObjectBatch {
-        return new WebGLObjectBatch(level, this.gl, this.program);
     }
 
-    fillRect(pos: Vec2, size: Vec2, color: Color) {
+    createObjectBatch(level: Level): ObjectBatch {
+        if (!this.gl || !this.program)
+            throw new Error("gl or program hasn't been initialized");
+        return new WebGLObjectBatch(level, this.gl, this.program);
+    }*/
+
+    fillRect(pos: Vec2, size: Vec2, color: Color, inWorld: boolean = true) {
         let gl = this.gl;
+        if (!gl || !this.quadShader || !this.quad)
+            return;
 
         let model = new Mat3();
-        model.translate(pos);
-        model.scale(size);
+        model = model.translate(pos);
+        model = model.scale(size);
 
         this.quadShader.use();
         this.quad.use();
 
-        this.quadShader.uMat3('uView', this.viewMatrix);
+        let mat = this.viewMatrix;
+        if (!inWorld) {
+            mat = new Mat3();
+            mat = mat.scale(new Vec2(2 / this.width, 2 / this.height));
+        }
+
+        this.quadShader.uMat3('uView', mat);
         this.quadShader.uMat3('uModel', model);
         this.quadShader.uColor('uColor', color);
         this.quadShader.uInteger('uTextureEnabled', 0);
@@ -573,10 +578,12 @@ export class WebGLContext extends RenderContext {
 
     renderTexture(pos: Vec2, size: Vec2, texture: any, color: Color) {
         let gl = this.gl;
+        if (!gl || !this.quadShader || !this.quad)
+            return;
 
         let model = new Mat3();
-        model.translate(pos);
-        model.scale(size);
+        model = model.translate(pos);
+        model = model.scale(size);
 
         this.quadShader.use();
         this.quad.use();
@@ -594,21 +601,45 @@ export class WebGLContext extends RenderContext {
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     }
 
-    render(batch: ObjectBatch, options: ContextRenderOptions | null, mainTexture: any, secondTexture: any) {
-        if (!(batch instanceof WebGLObjectBatch))
-            return;
-
-        const buffer = batch.buffer;
-        if (!(buffer instanceof WebGLBatchBuffer))
-            return;
-
+    renderGrid(pos: Vec2, size: Vec2, width: number) {
         let gl = this.gl;
+        if (!gl || !this.gridShader || !this.quad)
+            return;
+
+        let model = new Mat3();
+        model = model.translate(pos);
+        model = model.scale(size);
+
+        this.gridShader.use();
+        this.quad.use();
+
+        this.gridShader.uMat3('uView', this.viewMatrix);
+        this.gridShader.uMat3('uModel', model);
+
+        this.gridShader.uFloat('uGridWidth', width);
+
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    }
+
+    prepareRender(options: ContextRenderOptions | null): boolean {
+        let gl = this.gl;
+        if (!gl || !this.program)
+            return false;
+       
+        if (
+            !this.colorInfoTexture ||
+            !this.groupStateTexture ||
+            !this.objectHSVTexture ||
+            !this.pulseTexture ||
+            !this.transformTexture
+        ) {
+            return false;
+        }
 
         if (options == null)
             options = new ContextRenderOptions();
 
         this.program.use();
-        buffer.bufferArray.use();
 
         this.updateColorInfoTexture();
         this.updatePulseTexture();
@@ -619,38 +650,27 @@ export class WebGLContext extends RenderContext {
         this.program.uInteger('uHideTriggers', options.hideTriggers ? 1 : 0);
 
         this.program.uInteger('uTexture', 0);
-        this.program.uInteger('uSecondTexture', 1);
-        this.program.uInteger('uColorInfoTexture', 2);
-        this.program.uInteger('uGroupStateTexture', 3);
-        this.program.uInteger('uObjectHSVTexture', 4);
-        this.program.uInteger('uPulseTexture', 5);
-        this.program.uInteger('uTransformTexture', 6);
+        this.program.uInteger('uColorInfoTexture', 1);
+        this.program.uInteger('uGroupStateTexture', 2);
+        this.program.uInteger('uObjectHSVTexture', 3);
+        this.program.uInteger('uPulseTexture', 4);
+        this.program.uInteger('uTransformTexture', 5);
 
-        if (mainTexture.loaded) {
-            gl.activeTexture(gl.TEXTURE0);
-            gl.bindTexture(gl.TEXTURE_2D, mainTexture.texture);
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, this.colorInfoTexture);
+        
+        gl.activeTexture(gl.TEXTURE2);
+        gl.bindTexture(gl.TEXTURE_2D, this.groupStateTexture);
+        
+        gl.activeTexture(gl.TEXTURE3);
+        gl.bindTexture(gl.TEXTURE_2D, this.objectHSVTexture);
+        
+        gl.activeTexture(gl.TEXTURE4);
+        gl.bindTexture(gl.TEXTURE_2D, this.pulseTexture);
+        
+        gl.activeTexture(gl.TEXTURE5);
+        gl.bindTexture(gl.TEXTURE_2D, this.transformTexture);
 
-            if (secondTexture && secondTexture.loaded) {
-                gl.activeTexture(gl.TEXTURE1);
-                gl.bindTexture(gl.TEXTURE_2D, secondTexture.texture);
-            }
-            
-            gl.activeTexture(gl.TEXTURE2);
-            gl.bindTexture(gl.TEXTURE_2D, this.colorInfoTexture);
-            
-            gl.activeTexture(gl.TEXTURE3);
-            gl.bindTexture(gl.TEXTURE_2D, this.groupStateTexture);
-            
-            gl.activeTexture(gl.TEXTURE4);
-            gl.bindTexture(gl.TEXTURE_2D, this.objectHSVTexture);
-            
-            gl.activeTexture(gl.TEXTURE5);
-            gl.bindTexture(gl.TEXTURE_2D, this.pulseTexture);
-            
-            gl.activeTexture(gl.TEXTURE6);
-            gl.bindTexture(gl.TEXTURE_2D, this.transformTexture);
-
-            gl.drawArrays(gl.TRIANGLES, 0, batch.vertexCount());
-        }
+        return true;
     }
 }

@@ -1,6 +1,6 @@
 import { Level } from "../../level";
 import { Util } from "../../util/util";
-import { GameObject } from "../object";
+import { GameObject, ObjectProperties, ObjectPropertyReader } from "../object";
 import { TriggerValue, ValueTrigger } from "./value-trigger";
 
 export class AlphaTriggerValue extends TriggerValue {
@@ -17,17 +17,17 @@ export class AlphaTriggerValue extends TriggerValue {
 }
 
 export class AlphaTrigger extends ValueTrigger {
-    duration: number;
-    alpha: number;
-    targetGroupId: number;
+    duration: number = 0;
+    alpha: number = 1;
+    targetGroupId: number = 0;
 
-    applyData(data: {}): void {
-        super.applyData(data);
+    applyProperties(rd: ObjectPropertyReader): void {
+        super.applyProperties(rd);
 
-        this.duration = GameObject.parse(data[10], 'number', 0);
-        this.alpha    = GameObject.parse(data[35], 'number', 1);
+        this.duration = rd.number(10, 0);
+        this.alpha    = rd.number(35, 1);
 
-        this.targetGroupId = GameObject.parse(data[51], 'number', 0);
+        this.targetGroupId = rd.number(51, 0);
     }
 
     getTriggerTrackId(): number {

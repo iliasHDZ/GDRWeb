@@ -1,11 +1,9 @@
-import { Renderer } from "../renderer";
-import { GDObjectsInfo, ZLayer } from "./info/object-info";
-import { ObjectSpriteColor } from "./info/object-sprite";
+import { ObjectInfo, SpriteColorType, ZLayer } from "./info/object-info";
 import { Mat3 } from "../util/mat3";
-import { AlphaTrigger, ColorTrigger, Level, MoveTrigger, PulseTrigger, RotateTrigger, SpeedPortal, StopTrigger, ToggleTrigger, Vec2 } from "..";
+import { AlphaTrigger, ColorTrigger, Level, MoveTrigger, PulseTrigger, RotateTrigger, ScaleTrigger, SpeedPortal, StopTrigger, ToggleTrigger, Vec2 } from "..";
 import { HSVShift } from "../util/hsvshift";
-import { TextureObject } from "../render/texture-object";
 import object_types from "../../assets/object_types.json";
+import objectDataList from '../../assets/object.json';
 
 // TODO: Move this into utils somewhere
 export function rand(min: number, max: number) {
@@ -26,6 +24,59 @@ export interface RandomProps {
     randColors?: boolean;
 };
 
+type ObjectPropertyKey = number | string;
+
+export type ObjectProperties = { [key: ObjectPropertyKey]: string };
+
+export class ObjectPropertyReader {
+    properties: ObjectProperties = {};
+
+    constructor(properties: ObjectProperties = {}) {
+        this.properties = properties;
+    }
+
+    has(key: ObjectPropertyKey): boolean {
+        const value = this.properties[key];
+        return value != undefined && value != null;
+    }
+
+    number(key: ObjectPropertyKey, defaultValue: number): number {
+        const value = this.properties[key];
+        if (value == undefined || value == null)
+            return defaultValue;
+        const number = +value;
+        if (isNaN(number))
+            return defaultValue;
+        return number;
+    }
+
+    bool(key: ObjectPropertyKey, defaultValue: boolean): boolean {
+        const value = this.properties[key];
+        if (value == undefined || value == null)
+            return defaultValue;
+        return value == '1';
+    }
+
+    intArray(key: ObjectPropertyKey): number[] {
+        const value = this.properties[key];
+        if (value == undefined || value == null)
+            return [];
+        let ret: number[] = [];
+        for (let element of value.split('.')) {
+            const number = +element;
+            if (!isNaN(number))
+                ret.push(Math.floor(number));
+            else
+                return [];
+        }
+        return ret;
+    }
+
+    hsvShift(key: ObjectPropertyKey): HSVShift {
+        return HSVShift.parse(this.properties[key] ?? "");
+    }
+};
+
 /**
  * GameObject represents one object in a Geometry Dash level. This can
  * be any solid object, trigger, gameplay element, etc. More specific
@@ -38,24 +89,30 @@ export interface RandomProps {
  * ```
  */
 export class GameObject {
-    private _id: number;
+    private _id: number = 1;
 
-    private _x: number;
-    private _y: number;
+    private _x: number = 0;
+    private _y: number = 0;
 
-    private _xflip: boolean;
-    private _yflip: boolean;
+    private _xflip: boolean = false;
+    private _yflip: boolean = false;
     
-    private _rotation: number;
-    private _scale: number;
-    
-    private _zorder: number;
-    private _zlayer: ZLayer;
+    private _rotation: number = 0;
+    private _scale: number = 1;
 
-    private _groups: number[];
+    private _scaleX: number = 1;
+    private _scaleY: number = 1;
+    private _warpXAngle: number = 0;
+    private _warpYAngle: number = 0;
     
-    private _baseCol: number;
-    private _detailCol: number;
+    private _zorder: number = 0;
+    private _zlayer: ZLayer = ZLayer.B1;
+
+    private _groups: number[] = [];
+    private _parentGroups: number[] = [];
+    
+    private _baseColorChannel: number = 1;
+    private _detailColorChannel: number = 1;
 
     private _baseHSVShift: HSVShift | null = null;
     private _detailHSVShift: HSVShift | null = null;
@@ -111,39 +168,56 @@ export class GameObject {
     public get groups(): number[] { return this._groups }
 
     /**
+     * The parent groups value of the GameObject. Contains array of group ids of which the object is the main object.
+     */
+    public get parentGroups(): number[] { return this._parentGroups }
+
+    /**
      * The base color channel id of the GameObject.
      */
-    public get baseCol(): number { return this._baseCol }
+    public get baseColorChannel(): number { return this._baseColorChannel }
 
     /**
      * The detail color channel id of the GameObject.
      */
-    public get detailCol(): number { return this._detailCol }
+    public get detailColorChannel(): number { return this._detailColorChannel }
 
     /**
      * The base color HSV shift of the GameObject.
      */
-    public get baseHSVShift(): HSVShift { return this._baseHSVShift }
+    public get baseHSVShift(): HSVShift | null { return this._baseHSVShift }
 
     /**
      * The detail color HSV shift of the GameObject.
      */
-    public get detailHSVShift(): HSVShift { return this._detailHSVShift }
+    public get detailHSVShift(): HSVShift | null { return this._detailHSVShift }
 
-    public groupComb: number;
+    public get position(): Vec2 { return new Vec2(this.x, this.y); }
+
+    public groupComb: number = 0;
     public baseHSVShiftId: number = 0;
     public detailHSVShiftId: number = 0;
 
     public uniqueId: number;
     static uniqueIdCounter: number = 0;
 
+    private modelMatrix: Mat3 | null = null;
+
     level: Level | null = null;
+
+    private static objectInfo: { [id: number]: ObjectInfo; } | null = null;
 
     protected constructor(id: number) {
         this.uniqueId = GameObject.uniqueIdCounter++;
 
         this._id = id;
-        this.resetValues();
+        this.applyDefaultValues();
+    }
+
+    public static getObjectInfo(id: number): ObjectInfo | null {
+        if (!this.objectInfo)
+            this.objectInfo = ObjectInfo.fromJSONList(objectDataList as any);
+        return this.objectInfo[id] ?? null;
     }
 
     /**
@@ -156,22 +230,15 @@ export class GameObject {
     public static create(id: number): GameObject {
         let obj: GameObject;
     
-        if (SpeedPortal.isOfType(id))
-            obj = new SpeedPortal(id);
-        else if (ColorTrigger.isOfType(id))
-            obj = new ColorTrigger(id);
-        else if (AlphaTrigger.isOfType(id))
-            obj = new AlphaTrigger(id);
-        else if (PulseTrigger.isOfType(id))
-            obj = new PulseTrigger(id);
-        else if (MoveTrigger.isOfType(id))
-            obj = new MoveTrigger(id);
-        else if (ToggleTrigger.isOfType(id))
-            obj = new ToggleTrigger(id);
-        else if (StopTrigger.isOfType(id))
-            obj = new StopTrigger(id);
-        else if (RotateTrigger.isOfType(id))
-            obj = new RotateTrigger(id);
+        if (SpeedPortal.isOfType(id))        obj = new SpeedPortal(id);
+        else if (ColorTrigger.isOfType(id))  obj = new ColorTrigger(id);
+        else if (AlphaTrigger.isOfType(id))  obj = new AlphaTrigger(id);
+        else if (PulseTrigger.isOfType(id))  obj = new PulseTrigger(id);
+        else if (MoveTrigger.isOfType(id))   obj = new MoveTrigger(id);
+        else if (RotateTrigger.isOfType(id)) obj = new RotateTrigger(id);
+        else if (ScaleTrigger.isOfType(id))  obj = new ScaleTrigger(id);
+        else if (ToggleTrigger.isOfType(id)) obj = new ToggleTrigger(id);
+        else if (StopTrigger.isOfType(id))   obj = new StopTrigger(id);
         else
             obj = new GameObject(id);
 
@@ -188,52 +255,22 @@ export class GameObject {
         this.onRemove(level);
     }
 
-    onInsert(level: Level) {}
+    onInsert(_: Level) {}
 
-    onRemove(level: Level) {}
+    onRemove(_: Level) {}
 
-    resetValues() {
-        this._x        = 0;
-        this._y        = 0;
-        this._xflip    = false;
-        this._yflip    = false;
-        this._rotation = 0;
-        this._scale    = 1;
-        this._groups   = [];
-
-        const def = Renderer.objectInfo.getData(this.id);
+    applyDefaultValues() {
+        const def = GameObject.getObjectInfo(this.id);
 
         if (def) {
-            this._zorder = def.zorder ?? 0;
-            this._zlayer = def.zlayer ?? 0;
-            this._baseCol   = def.baseCol ?? 0;
-            this._detailCol = def.detailCol ?? 0;
-        } else {
-            this._zorder = 0;
-            this._zlayer = 0;
-            this._baseCol   = 0;
-            this._detailCol = 0;
+            this._zorder = def.defaultZOrder ?? 1;
+            this._zlayer = def.defaultZLayer ?? ZLayer.B1;
+            this._baseColorChannel   = def.defaultBaseColorChannel ?? 1;
+            this._detailColorChannel = def.defaultDetailColorChannel ?? 1;
         }
     }
 
-    static parse(data: string, type: string, def: any): any {
-        if (!data) return def;
-
-        switch (type) {
-        case 'number':  return +data;
-        case 'boolean': return data == '1';
-        case 'array':
-            let ret: number[] = [];
-            for (let n of data.split('.'))
-                if (!isNaN(+n))
-                    ret.push(Math.floor(+n));
-            return ret;
-        default: 
-            return def;
-        }
-    }
-
-    static getZLayerValue(z: number): ZLayer {
+    static getZLayerValue(z: number): ZLayer | null {
         switch (z) {
         case -3: return ZLayer.B4;
         case -1: return ZLayer.B3;
@@ -242,104 +279,88 @@ export class GameObject {
         case  5: return ZLayer.T1;
         case  7: return ZLayer.T2;
         case  9: return ZLayer.T3;
+        case 11: return ZLayer.T4;
         default: return null;
         }
     }
 
-    applyData(data: {}) {
-        this._id       = GameObject.parse(data[1],  'number',  1);
-        this._x        = GameObject.parse(data[2],  'number',  0);
-        this._y        = GameObject.parse(data[3],  'number',  0);
-        this._xflip    = GameObject.parse(data[4],  'boolean', false);
-        this._yflip    = GameObject.parse(data[5],  'boolean', false);
-        this._rotation = GameObject.parse(data[6],  'number',  0);
-        this._scale    = GameObject.parse(data[32], 'number',  1);
-        this._groups   = GameObject.parse(data[57], 'array',   []);
+    applyProperties(rd: ObjectPropertyReader) {
+        // console.log(rd.properties);
 
-        const baseShiftEnabled   = GameObject.parse(data[41], 'boolean', false);
-        const detailShiftEnabled = GameObject.parse(data[42], 'boolean', false);
+        this._id         = rd.number(1, 1);
+        this._x          = rd.number(2, 0);
+        this._y          = rd.number(3, 0);
+        this._xflip      = rd.bool(4, false);
+        this._yflip      = rd.bool(5, false);
+        this._rotation   = rd.number(6,   0);
+        this._scale      = rd.number(32,  1);
+        this._scaleX     = rd.number(128, 1);
+        this._scaleY     = rd.number(129, 1);
+        this._warpXAngle = rd.number(131, 0);
+        this._warpYAngle = rd.number(132, 0);
+        this._groups     = rd.intArray(57);
+
+        this._parentGroups = rd.intArray(274);
+
+        const baseShiftEnabled   = rd.bool(41, false);
+        const detailShiftEnabled = rd.bool(42, false);
 
         if (baseShiftEnabled)
-            this._baseHSVShift = HSVShift.parse(data[43]);
+            this._baseHSVShift = rd.hsvShift(43);
         if (detailShiftEnabled)
-            this._detailHSVShift = HSVShift.parse(data[44]);
+            this._detailHSVShift = rd.hsvShift(44);
 
-        const singleGroup = GameObject.parse(data[33], 'number', null);
-        if (singleGroup)
-            this.groups.push(singleGroup);
+        if (rd.has(33))
+            this.groups.push(rd.number(33, 1));
 
-        this._zorder = GameObject.parse(data[25], 'number', this.zorder);
-        this._zlayer = GameObject.getZLayerValue(GameObject.parse(data[24], 'number', null)) ?? this.zlayer;
+        this._zorder = rd.number(25, this.zorder);
+        if (rd.has(24))
+            this._zlayer = GameObject.getZLayerValue(rd.number(24, 67)) ?? this.zlayer;
         
-        this._baseCol   = GameObject.parse(data[21], 'number', this.baseCol);
-        this._detailCol = GameObject.parse(data[22], 'number', this.detailCol);
+        this._baseColorChannel   = rd.number(21, this.baseColorChannel);
+        this._detailColorChannel = rd.number(22, this.detailColorChannel);
     }
 
-    getColorChannel(spriteColor: ObjectSpriteColor): number {
+    getColorChannel(spriteColor: SpriteColorType): number {
         switch (spriteColor) {
-        case ObjectSpriteColor.BLACK:
-        case ObjectSpriteColor.BASE:   return this.baseCol;
-        case ObjectSpriteColor.DETAIL: return this.detailCol;
+        case SpriteColorType.GLOW:
+        case SpriteColorType.BLACK:
+        case SpriteColorType.BASE:   return this.baseColorChannel;
+        case SpriteColorType.DETAIL: return this.detailColorChannel;
         default:
             return 0;
         }
     }
 
     getModelMatrix(): Mat3 {
-        let positionMatrix = new Mat3();
-        let scaleMatrix = new Mat3();
-        let rotationMatrix = new Mat3();
+        if (this.modelMatrix == null) {
+            let positionMatrix = new Mat3();
+            let scaleMatrix    = new Mat3();
+            let rotationMatrix = new Mat3();
 
-        let scale = new Vec2(this.scale, this.scale);
+            let scale = new Vec2(
+                this.scale * this._scaleX * (1 - +this.xflip * 2),
+                this.scale * this._scaleY * (1 - +this.yflip * 2)
+            );
 
-        if (this.xflip) scale.x *= -1;
-        if (this.yflip) scale.y *= -1;
+            let rotationX = -(this.rotation + this._warpXAngle) * Math.PI / 180;
+            let rotationY = -(this.rotation + this._warpYAngle) * Math.PI / 180;
 
-        positionMatrix.translate(new Vec2(this.x, this.y));
-        scaleMatrix.scale(scale);
-        rotationMatrix.rotate((-this.rotation) * Math.PI / 180);
+            // not sure why it is flipped but oh well
+            [rotationX, rotationY] = [rotationY, rotationX];
 
-        return positionMatrix.multiply(rotationMatrix).multiply(scaleMatrix);
-    }
+            positionMatrix = positionMatrix.translate(new Vec2(this.x, this.y));
+            scaleMatrix    = scaleMatrix.scale(scale);
+            rotationMatrix = rotationMatrix.rotateXY(rotationX, rotationY);
 
-    generateBatchObjects(level: Level, renderInfo: GDObjectsInfo): TextureObject[] {
-        const info = renderInfo.getData(this.id);
-        if (!info) return [];
-
-        let textures: TextureObject[] = [];
-
-        if (info.rootSprite) {
-            const groups = level.groupManager.getGroupCombination(this.groupComb ?? null);
-            const transformId = level.transformManager.groupCombIdxToTransformIdx[this.groupComb] ?? 0;
-
-            const baseHSVId   = this.baseHSVShiftId;
-            const detailHSVId = this.detailHSVShiftId;
-
-            info.rootSprite.enumerateAllByDepth(sprite => {
-                let hsvId = 0;
-                if (sprite.colorType == ObjectSpriteColor.BASE)
-                    hsvId = baseHSVId;
-                if (sprite.colorType == ObjectSpriteColor.DETAIL)
-                    hsvId = detailHSVId;
-
-                const objectMatrix = this.getModelMatrix();
-                const spriteMatrix = sprite.getRenderModelMatrix();
-
-                textures.push(new TextureObject(
-                    objectMatrix.multiply(spriteMatrix),
-                    this.getColorChannel(sprite.colorType),
-                    sprite.sprite,
-                    groups,
-                    transformId,
-                    new Vec2(this.x, this.y),
-                    hsvId,
-                    sprite.colorType == ObjectSpriteColor.BLACK,
-                    object_types.triggers.includes(this.id)
-                ));
-            });
+            this.modelMatrix = positionMatrix.multiply(rotationMatrix).multiply(scaleMatrix);
         }
 
-        return textures;
+        return this.modelMatrix;
+    }
+
+    isTrigger(): boolean {
+        return object_types.triggers.includes(this.id);
     }
 
     static generateRandomObject(props: RandomProps = {}): GameObject {
@@ -360,8 +381,8 @@ export class GameObject {
         }
 
         if (props.randColors ?? false) {
-            obj._baseCol   = randInt(1, 1010);
-            obj._detailCol = randInt(1, 1010);
+            obj._baseColorChannel   = randInt(1, 1010);
+            obj._detailColorChannel = randInt(1, 1010);
         }
 
         return obj;
@@ -374,15 +395,10 @@ export class GameObject {
         return objs;
     }
 
-    batchObjectCount(renderInfo: GDObjectsInfo): number {
-        const info = renderInfo.getData(this.id);
+    spriteCount(): number {
+        const info = GameObject.getObjectInfo(this.id);
         if (!info) return 0;
-        if (!info.rootSprite) return 0;
-
-        let count = 0;
-        info.rootSprite.enumerateAll(() => count++);
-
-        return count;
+        return info.sprites.length;
     }
 
     static areObjectsSortedByZOrder(objs: GameObject[]): boolean {
@@ -401,18 +417,6 @@ export class GameObject {
     static sortObjectsByZOrder(objs: GameObject[]): GameObject[] {
         return objs.sort(GameObject.compareZOrder);
     }
-
-    /*static fromLevelData(data: {}): GDObject {
-        let id = data[1] || 1;
-
-        let o: GDObject;
-
-        if (SpeedPortal.isOfType(id))
-            o = new SpeedPortal();
-
-        o.applyData(data);
-        return o;
-    }*/
 
     static compareZOrder(o1: GameObject, o2: GameObject, ob1: boolean = false, ob2: boolean = false) {
         if (o1.zlayer != o2.zlayer) return o1.zlayer - o2.zlayer;

@@ -41,8 +41,8 @@ export class Camera {
         const width  = this.screenSize.x;
         const height = this.screenSize.y;
 
-        m.scale( new Vec2( 2 / width * this.zoom, 2 / height * this.zoom ) );
-        m.translate( new Vec2(-this.x, -this.y) );
+        m = m.scale( new Vec2( 2 / width * this.zoom, 2 / height * this.zoom ) );
+        m = m.translate( new Vec2(-this.x, -this.y) );
 
         return m;
     }

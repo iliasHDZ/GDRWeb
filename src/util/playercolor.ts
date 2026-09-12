@@ -13,7 +13,9 @@ export class PlayerColor extends GDColor {
         this.blending = blending;
     }
 
-    evaluate(level: Level, time: number): [Color, boolean] {
+    evaluate(level: Level | null, _: number): [Color, boolean] {
+        if (!level)
+            return [Color.fromRGB(0, 0, 0), this.blending];
         return [level.getPlayerColor(this.plrcol, this.opacity), this.blending];
     }
 }

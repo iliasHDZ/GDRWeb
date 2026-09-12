@@ -1,14 +1,14 @@
 import { Level } from "../..";
-import { GameObject } from "../object";
+import { GameObject, ObjectPropertyReader } from "../object";
 import { Trigger } from "./trigger";
 
 export class StopTrigger extends Trigger {
-    targetGroupId: number;
+    targetGroupId: number = 0;
 
-    applyData(data: {}): void {
-        super.applyData(data);
+    applyProperties(rd: ObjectPropertyReader): void {
+        super.applyProperties(rd);
 
-        this.targetGroupId = GameObject.parse(data[51], 'number', 0);
+        this.targetGroupId = rd.number(51, 0);
     }
 
     onInsert(level: Level): void {

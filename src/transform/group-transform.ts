@@ -1,21 +1,11 @@
 import { Vec2 } from "..";
 
 export class GroupTransform {
-    offset: Vec2;
-
-    right: Vec2;
-    up: Vec2;
-
-    objRight: Vec2;
-    objUp: Vec2;
-
-    constructor() {
-        this.offset = new Vec2(0, 0);
-        this.right = new Vec2(1, 0);
-        this.up = new Vec2(0, 1);
-        this.objRight = new Vec2(1, 0);
-        this.objUp = new Vec2(0, 1);
-    }
+    offset:   Vec2 = new Vec2(0, 0);
+    right:    Vec2 = new Vec2(1, 0);
+    up:       Vec2 = new Vec2(0, 1);
+    objRight: Vec2 = new Vec2(1, 0);
+    objUp:    Vec2 = new Vec2(0, 1);
 
     copy(): GroupTransform {
         let ret = new GroupTransform();
@@ -39,6 +29,16 @@ export class GroupTransform {
         return new Vec2(vec.x * cosv - vec.y * sinv, vec.x * sinv + vec.y * cosv);
     }
 
+    rotateOnlyObjectCosSin(cosv: number, sinv: number) {
+        this.objRight = GroupTransform.rotateVector(this.objRight, cosv, sinv);
+        this.objUp    = GroupTransform.rotateVector(this.objUp,    cosv, sinv);
+    }
+
+    rotateOnlyObject(angle: number) {
+        const rads = angle / 180 * Math.PI;
+        this.rotateOnlyObjectCosSin(Math.cos(rads), Math.sin(rads));
+    }
+
     rotate(angle: number, center: Vec2, lockObjRot: boolean) {
         const rads = angle / 180 * Math.PI;
         const cosv = Math.cos(rads);
@@ -47,12 +47,26 @@ export class GroupTransform {
         const rotvec = this.offset.sub(center);
         this.offset  = GroupTransform.rotateVector(rotvec, cosv, sinv).add(center);
 
-        this.up    = GroupTransform.rotateVector(this.up,    cosv, sinv);
         this.right = GroupTransform.rotateVector(this.right, cosv, sinv);
+        this.up    = GroupTransform.rotateVector(this.up,    cosv, sinv);
 
-        if (!lockObjRot) {
-            this.objUp    = GroupTransform.rotateVector(this.objUp,    cosv, sinv);
-            this.objRight = GroupTransform.rotateVector(this.objRight, cosv, sinv);
-        }
+        if (!lockObjRot)
+            this.rotateOnlyObjectCosSin(cosv, sinv);
+    }
+
+    scaleOnlyObject(scale: Vec2) {
+        this.objRight = this.objRight.muln(scale.x);
+        this.objUp    = this.objUp.muln(scale.y);
+    }
+
+    scale(scale: Vec2, center: Vec2, moveOnly: boolean) {
+        const vector = this.offset.sub(center);
+        this.offset  = vector.mul(scale).add(center);
+        
+        this.right = this.right.muln(scale.x);
+        this.up    = this.up.muln(scale.y);
+
+        if (!moveOnly)
+            this.scaleOnlyObject(scale);
     }
 };

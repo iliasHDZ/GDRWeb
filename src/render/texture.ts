@@ -3,12 +3,12 @@ import { RenderContext } from "../context/context";
 export class Texture {
     public texture: any;
 
-    public width: number;
-    public height: number;
+    public width: number = 0;
+    public height: number = 0;
 
     public loaded: boolean = false;
 
-    public onload: Function = null;
+    public onload: Function | null = null;
 
     ctx: RenderContext;
 

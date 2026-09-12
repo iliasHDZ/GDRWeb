@@ -1,4 +1,4 @@
-import { GameObject } from "./object/object";
+import { GameObject, ObjectProperties, ObjectPropertyReader } from "./object/object";
 import { PortalSpeed, SpeedPortal } from "./object/speed-portal";
 import { ColorTrigger, ColorTriggerValue } from "./object/trigger/color-trigger";
 import { AlphaTrigger } from "./object/trigger/alpha-trigger";
@@ -29,6 +29,7 @@ import { SpeedManager } from "./speed-manager";
 import { Trigger } from "./object/trigger/trigger";
 import { TriggerTrackList } from "./track/trigger-track";
 import { ColorManager } from "./color-manager";
+import { Vec2 } from "./util/vec2";
 
 const LOADING_STEPS_COUNT = 10;
 
@@ -42,19 +43,18 @@ export enum ColorChannel {
     P2 = 1006,
     LBG = 1007,
     G2 = 1009,
-    BLACK = 1010
+    BLACK = 1010,
+    COUNT = 1101
 };
 
 export class Level {
-    private data: GameObject[] = [];
+    private objects: GameObject[] = [];
 
     public stopTrackList: StopTriggerTrackList;
 
-    song_offset: number = 0;
+    songOffset: number = 0;
     backgroundId: number = 0;
     groundId: number = 0;
-
-    valid_channels: number[];
 
     validColorChannels: Set<number> = new Set<number>();
 
@@ -66,9 +66,11 @@ export class Level {
     objectHSVManager: ObjectHSVManager;
     objectHSVsLoaded: boolean = false;
 
+    lastObjectXPosition: number = 0;
+
     levelGraphicsList: LevelGraphics[] = [];
     
-    gamemodePortals: GameObject[];
+    gamemodePortals: GameObject[] = [];
 
     constructor() {
         this.speedManager = new SpeedManager();
@@ -93,17 +95,19 @@ export class Level {
 
     static parseLevelProps(level: Level, str: string) {
         let psplit = str.split(',');
-        let props  = {};
+        let props: {[_: string]: string} = {};
 
         for (let p = 0; p < psplit.length; p += 2)
             props[psplit[p]] = psplit[p + 1];
+
+        const rd = new ObjectPropertyReader(props);
         
-        const speed = GameObject.parse(props['kA4'], 'number', 0);
+        const speed = rd.number('kA4', 0);
         level.speedManager.startSpeed = Level.getLevelSpeedEnum(speed);
         
-        level.song_offset = GameObject.parse(props['kA13'], 'number', 0);
-        level.backgroundId = GameObject.parse(props['kA6'], 'number', 1);
-        level.groundId = GameObject.parse(props['kA7'], 'number', 1);
+        level.songOffset   = rd.number('kA13', 0);
+        level.backgroundId = rd.number('kA6', 1);
+        level.groundId     = rd.number('kA7', 1);
 
         if (props['kS38']) {
             for (let colorStr of props['kS38'].split('|'))
@@ -111,11 +115,11 @@ export class Level {
         }
     }
 
-    static parseObject(data: {}): GameObject | null {
-        let id = +data[1] ?? 1;
+    static parseObject(rd: ObjectPropertyReader): GameObject | null {
+        let id = rd.number(1, 1);
 
         let obj = GameObject.create(id);
-        obj.applyData(data);
+        obj.applyProperties(rd);
 
         return obj;
     }
@@ -127,17 +131,30 @@ export class Level {
 
         this.parseLevelProps(level, split[0]);
 
+        const rd = new ObjectPropertyReader();
+
         for (let i = 1; i < split.length; i++) {
             let psplit = split[i].split(',');
-            let props  = {};
+            let props: ObjectProperties = {};
 
-            for (let p = 0; p < psplit.length; p += 2)
-                props[+psplit[p]] = psplit[p + 1];
+            for (let p = 0; (p + 1) < psplit.length; p += 2) {
+                const key = +psplit[p];
+                if (isNaN(key))
+                    continue;
 
-            const obj = this.parseObject(props);
+                props[key] = psplit[p + 1];
+            }
+
+            rd.properties = props;
+
+            const object = this.parseObject(rd);
+
+            // This might not be a good idea, it's supposed to remove that one default block
+            if (i == split.length - 1 && (object?.id ?? 1) == 1)
+                continue;
             
-            if (obj != null)
-                level.insertObject(obj);
+            if (object != null)
+                level.insertObject(object);
         }
 
         level.init();
@@ -163,7 +180,7 @@ export class Level {
     }
 
     getObjects(): GameObject[] {
-        return this.data;
+        return this.objects;
     }
 
     timeAt(x: number): number {
@@ -194,20 +211,27 @@ export class Level {
     public updateStopActions(id: number | null = null) {
         this.colorManager.updateStopActions(id);
         this.groupManager.updateStopActions(id);
-        this.transformManager.updateStopActions(id);
     }
 
     gameStateAtPos(pos: number): GameState {
         let approxYPos = 0;
 
         for (let portal of this.gamemodePortals) {
-            if (portal.x <= pos)
+            if (portal.x <= pos) {
                 approxYPos = portal.y;
+                break;
+            }
         }
 
         let state = new GameState();
         state.approxYPos = approxYPos;
         return state;
+    }
+
+    getPlayerPositionAtTime(time: number): Vec2 {
+        const posX  = this.posAt(time);
+        const state = this.gameStateAtPos(posX);
+        return new Vec2(posX, state.approxYPos);
     }
 
     public getTrackListForTrigger(trigger: Trigger): TriggerTrackList | null {
@@ -220,57 +244,15 @@ export class Level {
         return this.groupManager.getTrackListForTrigger(trigger);
     }
 
-    private insertObjectsIntoBatch(objects: GameObject[]): void {
-        for (let gfx of this.levelGraphicsList) {
-            gfx.insertObjects(objects);
-        }
-    }
-
-    private removeObjectsFromBatch(objects: GameObject[]): void {
-        for (let gfx of this.levelGraphicsList) {
-            gfx.removeObjects(objects);
-        }
-    }
-
-    public insertObjects(objects: GameObject[]): void {
-        for (let obj of objects) {
-            obj.insertObject(this);
-            this.data.push(obj);
-        }
-
-        this.insertObjectsIntoBatch(objects);
-    }
-
-    public insertObject(object: GameObject): void {
-        object.insertObject(this);
-        this.data.push(object);
-
-        this.insertObjectsIntoBatch([object]);
-    }
-
-    public removeObjects(objects: GameObject[]): void {
-        for (let obj of objects) {
-            obj.removeObject(this);
-            const idx = this.data.indexOf(obj);
-            if (idx != -1)
-                this.data.splice(idx, 0);
-        }
-
-        this.removeObjectsFromBatch(objects);
-    }
-
-    public removeObject(object: GameObject): void {
-        object.removeObject(this);
-        const idx = this.data.indexOf(object);
-        if (idx != -1)
-            this.data.splice(idx, 0);
-
-        this.removeObjectsFromBatch([object]);
-    }
-
     private createLevelGraphics(renderer: Renderer): LevelGraphics {
         const gfx = new LevelGraphics(this, renderer);
-        gfx.insertObjects(this.data);
+        gfx.initWithObjects(this.objects);
+
+        let i = 0;
+        for (const section of this.colorManager.blendingStates)
+            gfx.prepareForBlendingStates(section.states, i++);
+        gfx.finishUp();
+
         this.levelGraphicsList.push(gfx);
         return gfx;
     }
@@ -284,47 +266,39 @@ export class Level {
         return this.createLevelGraphics(renderer);
     }
 
+    public insertObject(object: GameObject): void {
+        object.insertObject(this);
+        this.objects.push(object);
+    }
+
     init() {
+        this.gamemodePortals = [];
+        for (let obj of this.objects) {
+            if ([12, 13, 47, 111, 660, 745, 1331].includes(obj.id))
+                this.gamemodePortals.push(obj);
+
+            if (obj.x > this.lastObjectXPosition)
+                this.lastObjectXPosition = obj.x;
+        }
+        this.gamemodePortals.sort((a, b) => a.x - b.x);
+
+        this.colorManager.calculateBlendingStates();
+
         this.groupManager.loadGroups();
         this.groupManager.compressLargeGroupCombinations(4);
 
         this.transformManager.prepare();
+        this.transformManager.simulateUntil(this.timeAt(this.lastObjectXPosition));
 
         this.objectHSVManager.reset();
         this.objectHSVManager.loadObjectHSVs();
 
-        this.gamemodePortals = [];
-        for (let obj of this.data) {
-            if ([12, 13, 47, 111, 660, 745, 1331].includes(obj.id))
-                this.gamemodePortals.push(obj);
-        }
-        this.gamemodePortals.sort((a, b) => a.x - b.x);
+        for (let obj of this.objects) {
+            if (obj.baseColorChannel != 0)
+                this.validColorChannels.add(obj.baseColorChannel);
 
-        let data: [GameObject, number, boolean][] = [];
-
-        let ind = 0;
-
-        for (let o of this.data) {
-            if (o.x == 0 && o.y == 0 && o.id == 1)
-                continue;
-            data.push([o, ind++, this.colorManager.isObjectBlending(o)]);
-        }
-
-        data.sort((a, b) => {
-            let r = GameObject.compareZOrder(a[0], b[0], a[2], b[2]);
-            if (r != 0) return r;
-
-            return a[1] - b[1];
-        });
-
-        this.valid_channels = [0];
-
-        for (let [obj] of data) {
-            if (obj.baseCol != 0 && !this.valid_channels.includes(obj.baseCol))
-                this.valid_channels.push(obj.baseCol);
-
-            if (obj.detailCol != 0 && !this.valid_channels.includes(obj.detailCol))
-                this.valid_channels.push(obj.detailCol);
+            if (obj.detailColorChannel != 0)
+                this.validColorChannels.add(obj.detailColorChannel);
         }
     }
 }

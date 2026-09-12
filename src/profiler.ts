@@ -88,8 +88,8 @@ export class Profiler {
         this.profileStack.push(profile);
     }
 
-    private pop(): Profile {
-        return this.profileStack.pop();
+    private pop(): Profile | null {
+        return this.profileStack.pop() ?? null;
     }
 
     public start(name: string, long: boolean = false) {
@@ -117,12 +117,13 @@ export class Profiler {
         }
     }
 
-    public end(): Profile {
+    public end(): Profile | null {
         if (this.profileStack.length == 0)
-            return;
+            return null;
 
         const profile = this.pop();
-        profile.end();
+        if (profile)
+            profile.end();
         return profile;
     }
 }

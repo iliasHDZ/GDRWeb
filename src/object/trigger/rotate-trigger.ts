@@ -1,36 +1,53 @@
+import { GroupTransform } from "../../transform/group-transform";
+import { TransformInfo } from "../../transform/transform";
 import { TransformManager } from "../../transform/transform-manager";
-import { easingFunction } from "../../util/easing";
-import { GameObject } from "../object";
+import { ObjectPropertyReader } from "../object";
 import { TransformTrigger } from "./transform-trigger";
 
 export class RotateTrigger extends TransformTrigger {
-    degrees: number;
-    times360: number;
+    degrees: number = 0;
+    times360: number = 0;
 
-    lockObjectRot: boolean;
+    lockObjectRot: boolean = false;
 
-    centerGroupId: number;
+    centerGroupId: number = 0;
 
-    applyData(data: {}): void {
-        super.applyData(data);
+    applyProperties(rd: ObjectPropertyReader): void {
+        super.applyProperties(rd);
         
-        this.degrees = GameObject.parse(data[68], 'number', 0);
-        this.times360 = GameObject.parse(data[69], 'number', 0);
+        this.degrees = rd.number(68, 0);
+        this.times360 = rd.number(69, 0);
 
-        this.lockObjectRot = GameObject.parse(data[70], 'boolean', false);
+        this.lockObjectRot = rd.bool(70, false);
 
-        this.centerGroupId = GameObject.parse(data[71], 'number', 0);
-    }
-
-    getAngle(): number {
-        return this.degrees + this.times360 * 360;
-    }
-
-    public rotationAfterDelta(deltaTime: number, _1: number, _2: TransformManager): number {
-        return 0;//this.getChange(deltaTime) * this.getAngle();
+        this.centerGroupId = rd.number(71, 0);
     }
 
     static isOfType(id: number): boolean {
         return id == 1346;
+    }
+
+    private getAngle(): number {
+        return this.degrees + this.times360 * 360;
+    }
+    
+    public applyTransform(transform: GroupTransform, info: TransformInfo): void {
+        const angle = -this.getAngle() * info.movementAmount;
+
+        const center = info.state.getCenterGroupPosition(this.centerGroupId);
+        if (!center) {
+            transform.rotateOnlyObject(angle);
+            return;
+        }
+
+        transform.rotate(angle, center, this.lockObjectRot);
+    }
+
+    public getSpecialCenterGroupId(): number | null {
+        return this.centerGroupId;
+    }
+
+    public getDependentCenterGroupIds(): Set<number> {
+        return new Set<number>([this.centerGroupId]);
     }
 }

@@ -1,5 +1,4 @@
 import { Level } from "./level";
-import { GameObject } from "./object/object";
 import { HSVShift } from "./util/hsvshift";
 
 export class ObjectHSVManager {

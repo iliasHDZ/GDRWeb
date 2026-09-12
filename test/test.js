@@ -1,4 +1,4 @@
-import acu from './levels/acu';
+// import acu from './levels/block_test';
 
 import * as gdr from '../src/index';
 import { GameObject } from '../src/object/object';
@@ -13,18 +13,19 @@ function randInt(min, max) {
 
 window.onload = async () => {
     canvas = document.getElementById('canvas');
+
+    /*
     await gdr.Renderer.initTextureInfo(
         "../assets/GJ_GameSheet-hd.plist",
         "../assets/GJ_GameSheet02-hd.plist"
     );
+    */
 
     let renderer = new gdr.Renderer(
         new gdr.WebGLContext(canvas),
-        "../assets/GJ_GameSheet-hd.png",
-        "../assets/GJ_GameSheet02-hd.png"
+        "../assets/",
+        gdr.TextureQuality.MEDIUM
     );
-
-    console.log(renderer.testBatchRemoval());
 
     await renderer.loadBackgrounds(name => `../assets/backgrounds/${name}.png`);
     await renderer.loadGrounds(name => `../assets/grounds/${name}.png`);
@@ -36,7 +37,7 @@ window.onload = async () => {
     console.log('Loading level...');
     //const level = await GDLevel.parse(acu);
 
-    const level = await gdr.Level.loadFromFile("levels/White_Space.gmd");
+    const level = await gdr.Level.loadFromFile("levels/Acu.gmd");
 
     console.log('Loading complete...');
     
@@ -50,17 +51,14 @@ window.onload = async () => {
     let my = 0;
 
     const render = () => {
+        const pre = window.performance.now();
         renderer.render(level, { hideTriggers: true });
+        const time = window.performance.now() - pre;
 
-        /*const fps = Math.floor(1000 / profile.duration);
-        const renderdur = profile.duration.toLocaleString('en-US', {maximumFractionDigits: 2});
+        const fps = Math.floor(1000 / time);
+        const renderdur = time.toLocaleString('en-US', {maximumFractionDigits: 2});
 
         document.getElementById('fps').innerHTML = `FPS: ${fps} (Render duration: ${renderdur}ms)<br>`;
-
-        const profileElem = document.getElementById('profile');
-        profileElem.innerHTML = "";
-
-        profileElem.appendChild(profile.toHTMLElement());*/
     }
 
     renderer.on('load', () => {
@@ -128,16 +126,23 @@ window.onload = async () => {
     let audio = new Audio('songs/Epilogue.mp3');
 
     function play() {
-        audio.currentTime = level.song_offset + level.timeAt(renderer.camera.x);
+        audio.currentTime = level.songOffset + level.timeAt(renderer.camera.x);
         playing = true;
         audio.volume = 0.5;
         audio.play();
+
+        let lastTime = window.performance.now();
+        let time = level.timeAt(renderer.camera.x);
 
         function pupdate() {
             if (playing)
                 window.requestAnimationFrame(pupdate);
 
-            let pos = level.posAt(audio.currentTime - level.song_offset);
+            const now = window.performance.now();
+            time += (now - lastTime) / 1000;
+            lastTime = now;
+
+            let pos = level.posAt(time);
 
             renderer.camera.x = pos;
             shouldRender = true;
@@ -187,8 +192,8 @@ window.onload = async () => {
     }
 
     function resize() {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
+        canvas.style.width = window.innerWidth + 'px';
+        canvas.style.height = window.innerHeight + 'px';
         shouldRender = true;
     }
 
