@@ -1,13 +1,7 @@
-import { GameObject } from "../object/object";
-import { MoveTrigger } from "../object/trigger/move-trigger";
 import { Trigger } from "../object/trigger/trigger";
 import { TriggerValue, ValueTrigger } from "../object/trigger/value-trigger";
-import { StopTriggerTrackList } from "./stop-trigger-track";
 import { Util } from "../util/util";
 import { TriggerAction, TriggerTrack, TriggerTrackList } from "./trigger-track";
-import { ColorTrigger } from "../object/trigger/color-trigger";
-import { AlphaTrigger } from "../object/trigger/alpha-trigger";
-import { ToggleTrigger } from "../object/trigger/toggle-trigger";
 import { Level } from "../level";
 
 export class ValueTriggerAction extends TriggerAction {
