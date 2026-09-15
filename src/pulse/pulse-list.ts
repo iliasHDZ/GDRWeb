@@ -5,8 +5,12 @@ import { PulseColorEntry, PulseEntry, PulseHSVEntry } from "./pulse-entry";
 export class PulseList {
     entries: PulseEntry[];
 
-    constructor() {
-        this.entries = [];
+    constructor(entries: PulseEntry[] = []) {
+        this.entries = entries;
+    }
+
+    public copy(): PulseList {
+        return new PulseList(this.entries.slice());
     }
 
     public add(entry: PulseEntry) {
@@ -27,9 +31,8 @@ export class PulseList {
     }
 
     public applyToColor(color: Color): Color {
-        for (let entry of this.entries) {
+        for (let entry of this.entries)
             color = entry.applyToColor(color);
-        }
 
         return color;
     }

@@ -254,7 +254,7 @@ export class SpriteBatch {
         const gl = this.gl;
         gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer.buffer.vbo);
 
-        console.log(`Rendering ${indexBuffer.buffer.size / indexBuffer.indexSize} indicies`);
+        // console.log(`Rendering ${indexBuffer.buffer.size / indexBuffer.indexSize} indicies`);
         gl.drawElements(
             gl.TRIANGLES,
             indexBuffer.buffer.size / indexBuffer.indexSize,

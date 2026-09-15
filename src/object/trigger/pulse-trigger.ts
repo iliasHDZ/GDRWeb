@@ -2,10 +2,10 @@ import { PulseColorEntry, PulseEntry, PulseHSVEntry } from "../../pulse/pulse-en
 import { PulseList } from "../../pulse/pulse-list";
 import { Color } from "../../util/color";
 import { HSVShift } from "../../util/hsvshift";
-import { Util } from "../../util/util";
-import { GameObject, ObjectProperties, ObjectPropertyReader } from "../object";
-import { TriggerValue, ValueTrigger } from "./value-trigger";
+import { ObjectPropertyReader } from "../object";
+import { ValueTrigger } from "./value-trigger";
 
+/*
 export class PulseTriggerValue extends TriggerValue {
     public pulseList: PulseList | null = null;
     public pulseEntry: PulseEntry | null = null;
@@ -63,6 +63,7 @@ export class PulseTriggerValue extends TriggerValue {
         return res;
     }
 };
+*/
 
 export enum PulseMode {
     COLOR,
@@ -74,7 +75,7 @@ export enum PulseTargetType {
     GROUP
 };
 
-export class PulseTrigger extends ValueTrigger {
+export class PulseTrigger extends ValueTrigger<PulseList> {
     r: number = 255;
     g: number = 255;
     b: number = 255;
@@ -127,8 +128,12 @@ export class PulseTrigger extends ValueTrigger {
         return this.targetId;
     }
 
+    public override isTrackIdGroupId(): boolean {
+        return this.targetType == PulseTargetType.GROUP;
+    }
+
     intensityAt(deltaTime: number): number {
-        if (deltaTime < 0 || deltaTime > this.getDuration())
+        if (deltaTime < 0 || deltaTime >= this.getDuration())
             return 0;
 
         if (deltaTime < this.fadeIn)
@@ -151,19 +156,21 @@ export class PulseTrigger extends ValueTrigger {
         return new PulseHSVEntry(this.pulseHsv, intensity, this.baseOnly, this.detailOnly);
     }
 
-    public valueAfterDelta(_1: TriggerValue, deltaTime: number, _2: number): TriggerValue {
-        if (deltaTime >= this.getDuration())
-            return PulseTriggerValue.default();
-
+    public override valueAfterDelta(list: PulseList, deltaTime: number, _: number): PulseList {
         const entry = this.getPulseEntryAt(deltaTime);
+        if (entry) {
+            list = list.copy();
+            list.add(entry);
+        }
 
-        if (entry != null)
-            return new PulseTriggerValue(entry);
-        else
-            return PulseTriggerValue.default();
+        return list;
     }
 
-    public getDuration(): number {
+    public override shouldCombineValues(): boolean {
+        return true;
+    }
+
+    public override getDuration(): number {
         return this.fadeIn + this.hold + this.fadeOut;
     }
 

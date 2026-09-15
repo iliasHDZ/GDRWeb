@@ -48,18 +48,18 @@ export class MoveTrigger extends TransformTrigger {
         this.directionModeDistance = rd.number(396, 0);
     }
 
-    getOffset(state: TransformState): Vec2 {
+    getOffset(info: TransformInfo): Vec2 {
         const vectorMode = this.targetMode || this.directionMode;
         if (!vectorMode)
             return new Vec2(this.moveX, this.moveY);
 
         const startGroupId = this.centerGroupId != 0 ? this.centerGroupId : this.targetGroupId;
 
-        const startPoint = state.getCenterGroupPosition(startGroupId);
+        const startPoint = info.getCenterGroupPosition(startGroupId);
         if (startPoint == null)
             return new Vec2(0, 0);
 
-        const endPoint = state.getCenterGroupPosition(this.moveTargetId);
+        const endPoint = info.getCenterGroupPosition(this.moveTargetId);
         if (endPoint == null)
             return new Vec2(0, 0);
 
@@ -91,7 +91,7 @@ export class MoveTrigger extends TransformTrigger {
         let offset: Vec2 = new Vec2(0, 0);
 
         if (lockX == null || lockY == null)
-            offset = this.getOffset(info.state).muln(info.movementAmount);
+            offset = this.getOffset(info).muln(info.movementAmount);
 
         offset = new Vec2(lockX ?? offset.x, lockY ?? offset.y);
 

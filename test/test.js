@@ -37,7 +37,7 @@ window.onload = async () => {
     console.log('Loading level...');
     //const level = await GDLevel.parse(acu);
 
-    const level = await gdr.Level.loadFromFile("levels/Acu.gmd");
+    const level = await gdr.Level.loadFromFile("levels/test.gmd");
 
     console.log('Loading complete...');
     
@@ -52,7 +52,7 @@ window.onload = async () => {
 
     const render = () => {
         const pre = window.performance.now();
-        renderer.render(level, { hideTriggers: true });
+        renderer.render(level, { hideTriggers: false });
         const time = window.performance.now() - pre;
 
         const fps = Math.floor(1000 / time);

@@ -1,22 +1,8 @@
-import { Level } from "../../level";
+import { ValueTrigger } from "./value-trigger";
 import { Util } from "../../util/util";
-import { GameObject, ObjectProperties, ObjectPropertyReader } from "../object";
-import { TriggerValue, ValueTrigger } from "./value-trigger";
+import { ObjectPropertyReader } from "../object";
 
-export class AlphaTriggerValue extends TriggerValue {
-    public alpha: number;
-
-    constructor(alpha: number) {
-        super();
-        this.alpha = alpha;
-    }
-
-    static default(): AlphaTriggerValue {
-        return new AlphaTriggerValue(1);
-    }
-}
-
-export class AlphaTrigger extends ValueTrigger {
+export class AlphaTrigger extends ValueTrigger<number> {
     duration: number = 0;
     alpha: number = 1;
     targetGroupId: number = 0;
@@ -30,22 +16,18 @@ export class AlphaTrigger extends ValueTrigger {
         this.targetGroupId = rd.number(51, 0);
     }
 
-    getTriggerTrackId(): number {
+    public override getTriggerTrackId(): number {
         return this.targetGroupId;
     }
 
-    public valueAfterDelta(startValue: TriggerValue, deltaTime: number, _: number): TriggerValue {
-        let startAlpha = 1;
-        if (startValue instanceof AlphaTriggerValue)
-            startAlpha = startValue.alpha;
-
+    public override valueAfterDelta(startAlpha: number, deltaTime: number, _: number): number {
         if (deltaTime >= this.duration)
-            return new AlphaTriggerValue(this.alpha);
+            return this.alpha;
 
-        return new AlphaTriggerValue(Util.lerp(startAlpha, this.alpha, deltaTime / this.duration));
+        return Util.lerp(startAlpha, this.alpha, deltaTime / this.duration);
     }
 
-    public getDuration(): number {
+    public override getDuration(): number {
         return this.duration;
     }
 

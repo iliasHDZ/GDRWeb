@@ -1,5 +1,6 @@
 import { Level } from "../level";
 import { TransformTrigger } from "../object/trigger/transform-trigger";
+import { TriggerAction } from "../object/trigger/trigger";
 import { easingFunction, EasingStyle } from "../util/easing";
 import { Vec2 } from "../util/vec2";
 import { GroupTransform } from "./group-transform";
@@ -7,36 +8,48 @@ import { TransformManager } from "./transform-manager";
 
 const TRANSFORM_ITERATION_LENGTH = 1 / 60;
 
-export interface TransformInfo {
+export class TransformInfo {
     action: TransformAction;
     state: TransformState;
     movementStartRatio: number;
     movementAmount: number;
     playerMovement: Vec2;
     cameraMovement: Vec2;
+
+    constructor(
+        action: TransformAction,
+        state: TransformState,
+        movementStartRatio: number,
+        movementAmount: number,
+        playerMovement: Vec2,
+        cameraMovement: Vec2
+    ) {
+        this.action = action;
+        this.state = state;
+        this.movementStartRatio = movementStartRatio;
+        this.movementAmount = movementAmount;
+        this.playerMovement = playerMovement;
+        this.cameraMovement = cameraMovement;
+    }
+
+    getCenterGroupPosition(centerGroupId: number): Vec2 | null {
+        return this.state.getCenterGroupPosition(this.action.remapGroupId(centerGroupId));
+    }
 };
 
-export class TransformAction {
-    trigger: TransformTrigger;
-    time: number = 0;
-    stopTime: number | null = null;
+export class TransformAction extends TriggerAction {
+    transformTrigger: TransformTrigger;
 
     constructor(trigger: TransformTrigger, time: number) {
-        this.trigger = trigger;
-        this.time    = time;
+        super(trigger, time);
+        this.transformTrigger = trigger;
     }
 
-    get duration(): number { return this.trigger.duration; }
+    get duration(): number { return this.transformTrigger.duration; }
     get endTime(): number { return this.stopTime != null ? this.stopTime : (this.time + this.duration); }
 
-    setStopTime(time: number) {
-        if (time >= this.endTime)
-            return;
-        this.stopTime = time;
-    }
-
     private applyEasing(value: number): number {
-        return easingFunction(value, this.trigger.easing);
+        return easingFunction(value, this.transformTrigger.easing);
     }
 
     applyForTimeSegment(transform: GroupTransform, state: TransformState, segmentStart: number, segmentEnd: number) {
@@ -51,16 +64,16 @@ export class TransformAction {
         const movementStartRatio = this.applyEasing(startRatio);
         const movementAmount = this.applyEasing(endRatio) - movementStartRatio;
 
-        const info: TransformInfo = {
-            action: this,
+        const info = new TransformInfo(
+            this,
             state,
             movementStartRatio,
             movementAmount,
-            playerMovement: state.level.getPlayerPositionAtTime(segmentEnd).sub(state.level.getPlayerPositionAtTime(segmentStart)),
-            cameraMovement: new Vec2(0, 0)
-        };
+            state.level.getPlayerPositionAtTime(segmentEnd).sub(state.level.getPlayerPositionAtTime(segmentStart)),
+            new Vec2(0, 0)
+        );
 
-        this.trigger.applyTransform(transform, info);
+        this.transformTrigger.applyTransform(transform, info);
     }
 };
 
@@ -88,8 +101,12 @@ export class TransformState {
 
     public reloadCenterGroupPositions() {
         let usedCenterGroupIds = new Set<number>();
-        for (const action of this.actions)
-            usedCenterGroupIds = usedCenterGroupIds.union(action.trigger.getDependentCenterGroupIds());
+        for (const action of this.actions) {
+            const dependentCGIDs = action.transformTrigger.getDependentCenterGroupIds();
+
+            for (const groupId of dependentCGIDs)
+                usedCenterGroupIds.add(action.remapGroupId(groupId));
+        }
 
         for (const groupId of usedCenterGroupIds) {
             if (this.centerGroupIdPositions[groupId])
@@ -107,7 +124,7 @@ export class TransformState {
     shouldIteratePerFrame(): boolean {
         if (this.actions.length > 1) {
             for (const action of this.actions) {
-                const centerGroupId = action.trigger.getSpecialCenterGroupId();
+                const centerGroupId = action.transformTrigger.getSpecialCenterGroupId();
 
                 if (centerGroupId && this.getCenterGroupPosition(centerGroupId) != null)
                     return true;
@@ -115,7 +132,7 @@ export class TransformState {
         }
 
         if (this.actions.length == 1) {
-            const centerGroupId = this.actions[0].trigger.getSpecialCenterGroupId();
+            const centerGroupId = this.actions[0].transformTrigger.getSpecialCenterGroupId();
             return centerGroupId != null && this.simulator.isGroupTransforming(centerGroupId);
         }
 
@@ -238,13 +255,13 @@ export class TransformSimulator {
     addAction(action: TransformAction) {
         this.actions.push(action);
 
-        if (action.trigger.targetGroupId == 130)
+        if (action.transformTrigger.targetGroupId == 130)
             console.log(action);
 
         if (action.time < this.time)
             this.time = action.time - 1;
 
-        const transformIds = this.manager.transformIdsPerGroupId[action.trigger.targetGroupId];
+        const transformIds = this.manager.transformIdsPerGroupId[action.transformTrigger.targetGroupId];
         if (!transformIds)
             return;
 
@@ -294,7 +311,7 @@ export class TransformSimulator {
     }
 
     private addActionToTracks(action: TransformAction) {
-        const transformIds = this.manager.transformIdsPerGroupId[action.trigger.targetGroupId];
+        const transformIds = this.manager.transformIdsPerGroupId[action.transformTrigger.targetGroupId];
         if (!transformIds)
             return;
 

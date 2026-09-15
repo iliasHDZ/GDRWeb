@@ -1,50 +1,38 @@
-import { Trigger } from "../object/trigger/trigger";
-import { TriggerValue, ValueTrigger } from "../object/trigger/value-trigger";
+import { Trigger, TriggerAction } from "../object/trigger/trigger";
 import { Util } from "../util/util";
-import { TriggerAction, TriggerTrack, TriggerTrackList } from "./trigger-track";
+import { TriggerTrack, TriggerTrackList } from "./trigger-track";
 import { Level } from "../level";
+import { ValueTrigger } from "../object/trigger/value-trigger";
 
-export class ValueTriggerAction extends TriggerAction {
-    track: ValueTriggerTrack;
-    stoppedAt: number | null = null;
-    valueTrigger: ValueTrigger;
-    cachedStartValue: TriggerValue | null = null;
+export class ValueTriggerAction<Value> extends TriggerAction {
+    track: ValueTriggerTrack<Value> | null = null;
+    valueTrigger: ValueTrigger<Value>;
+    cachedStartValue: Value | null = null;
 
-    level: Level;
-
-    constructor(trigger: ValueTrigger, time: number, level: Level, track: ValueTriggerTrack) {
+    constructor(trigger: ValueTrigger<Value>, time: number) {
         super(trigger, time);
 
         this.valueTrigger = trigger;
-        this.track = track;
-
-        this.level = level;
-
-        this.updateStopAction();
-    }
-
-    public updateStopAction(id: number | null = null) {
-        if (id != null && !this.trigger.groups.includes(id))
-            return;
-
-        this.stoppedAt = this.level.stopTrackList.getTriggerStopTime(this.trigger, this.time);
     }
 
     clearCache() {
         this.cachedStartValue = null;
     }
 
-    getStartValue(): TriggerValue {
+    getStartValue(): Value {
+        if (this.track == null)
+            new Error("cannot get start value if action is not inserted into a track");
+
         if (!this.cachedStartValue)
-            this.cachedStartValue = this.track.valueAt(this.time);
+            this.cachedStartValue = (this.track as ValueTriggerTrack<Value>).valueAt(this.time);
 
         return this.cachedStartValue;
     }
 
-    valueAt(start: TriggerValue, time: number): TriggerValue {
+    valueAt(start: Value, time: number): Value {
         let maxExecutionTime = this.valueTrigger.getDuration();
-        if (this.stoppedAt != null)
-            maxExecutionTime = Math.min(maxExecutionTime, this.stoppedAt - this.time);
+        if (this.stopTime != null)
+            maxExecutionTime = Math.min(maxExecutionTime, this.stopTime - this.time);
 
         const deltaTime = Util.clamp(time - this.time, 0, maxExecutionTime);
         
@@ -56,34 +44,12 @@ export class ValueTriggerAction extends TriggerAction {
     }
 }
 
-export class ValueTriggerTrack extends TriggerTrack {
-    public actions: ValueTriggerAction[];
-    public startValue: TriggerValue;
+export class ValueTriggerTrack<Value> extends TriggerTrack<ValueTriggerAction<Value>> {
+    public startValue: Value;
 
-    constructor(startValue: TriggerValue, level: Level, trackId?: number, trackList?: ValueTriggerTrackList) {
-        super(level, trackId, trackList);
+    constructor(startValue: Value, level: Level, trackId?: number) {
+        super(level, trackId);
         this.startValue = startValue;
-        this.actions = [];
-    }
-
-    public updateStopActions(id: number | null = null) {
-        for (let exec of this.actions)
-            exec.updateStopAction(id);
-    }
-
-    public setStartValue(value: TriggerValue) {
-        this.startValue = value;
-    }
-
-    protected getActions(): TriggerAction[] {
-        return this.actions;
-    }
-
-    protected createAction(trigger: Trigger, time: number): TriggerAction | null {
-        if (!(trigger instanceof ValueTrigger))
-            return null;
-
-        return new ValueTriggerAction(trigger, time, this.level, this);
     }
 
     protected clearCachedValuesAt(idx: number) {
@@ -91,130 +57,79 @@ export class ValueTriggerTrack extends TriggerTrack {
             this.actions[idx].clearCache();
     }
 
-    public activateTriggerAt(trigger: Trigger, time: number): number {
-        const idx = super.activateTriggerAt(trigger, time);
+    public insertAction(action: ValueTriggerAction<Value>): number {
+        action.track = this;
+        const idx = super.insertAction(action);
         this.clearCachedValuesAt(idx);
-
         return idx;
     }
 
-    public removeTrigger(trigger: Trigger): number | null {
-        const idx = super.removeTrigger(trigger);
-        if (idx != null)
-            this.clearCachedValuesAt(idx);
+    public lastActionBefore(time: number): ValueTriggerAction<Value> | null {
+        let lastAction: ValueTriggerAction<Value> | null = null;
 
-        return idx;
-    }
-
-    public lastExecutionBefore(time: number): ValueTriggerAction | null {
-        let lastExec: ValueTriggerAction | null = null;
-
-        for (let exec of this.actions) {
-            if (exec.time >= time) break;
-            lastExec = exec;
+        for (let action of this.actions) {
+            if (action.time >= time) break;
+            lastAction = action;
         }
 
-        return lastExec;
+        return lastAction;
     }
 
-    public lastActionLeftOf(x: number): ValueTriggerAction | null {
-        let lastExec: ValueTriggerAction | null = null;
+    public lastActionLeftOf(x: number): ValueTriggerAction<Value> | null {
+        let lastAction: ValueTriggerAction<Value> | null = null;
 
-        for (let exec of this.actions) {
-            if (exec.trigger.spawnTriggered) continue;
-            if (exec.trigger.x >= x) break;
-            lastExec = exec;
+        for (let action of this.actions) {
+            if (action.trigger.spawnTriggered) continue;
+            if (action.trigger.x >= x) break;
+            lastAction = action;
         }
 
-        return lastExec;
+        return lastAction;
     }
 
-    public valueAt(time: number): TriggerValue {
-        const lastExec = this.lastExecutionBefore(time);
-        if (!lastExec)
+    public valueAt(time: number): Value {
+        const lastAction = this.lastActionBefore(time);
+        if (!lastAction)
             return this.startValue;
         
-        return lastExec.valueAt(lastExec.getStartValue(), time);
+        return lastAction.valueAt(lastAction.getStartValue(), time);
     }
 
-    public lastValueAt(time: number): TriggerValue {
-        const lastExec = this.lastExecutionBefore(time);
-        if (!lastExec)
-            return this.startValue;
-        
-        return lastExec.valueAt(this.startValue, time);
-    }
-
-    public combinedValueAt(startValue: TriggerValue, time: number): TriggerValue {
-        let value: TriggerValue | null = startValue;
-
-        for (let exec of this.actions) {
-            if (exec.time >= time) break;
-
-            value = value.combineWith(exec.valueAt(startValue, time));
-            if (value == null)
-                return startValue;
+    // Only used for pulse triggers
+    public combinedValueAt(time: number): Value {
+        let value = this.startValue;
+        for (const action of this.actions) {
+            if (action.time >= time) break;
+            value = action.valueAt(value, time);
         }
-        
         return value;
     }
 }
 
-export class ValueTriggerTrackList extends TriggerTrackList {
-    public tracks: { [id: number]: ValueTriggerTrack } = {};
-    
-    defaultStartValue: TriggerValue;
+export class ValueTriggerTrackList<Value> extends TriggerTrackList<ValueTriggerAction<Value>> {
+    defaultStartValue: Value;
 
-    constructor(level: Level, defaultStartValue: TriggerValue) {
+    constructor(level: Level, defaultStartValue: Value) {
         super(level);
         this.defaultStartValue = defaultStartValue;
     }
 
-    protected getTracks(): { [id: number]: TriggerTrack } {
-        return this.tracks;
+    protected override createTrack(id: number): TriggerTrack<ValueTriggerAction<Value>> {
+        return new ValueTriggerTrack<Value>(this.defaultStartValue, this.level, id);
     }
 
-    protected createTrack(id: number): TriggerTrack {
-        return new ValueTriggerTrack(this.defaultStartValue, this.level, id, this);
-    }
-
-    public updateStopActions(id: number | null = null) {
-        for (let track of Object.values(this.tracks))
-            track.updateStopActions(id);
-    }
-
-    public get(id: number): ValueTriggerTrack | null {
+    public get(id: number): ValueTriggerTrack<Value> | null {
         const track = this.tracks[id];
         if (!track) return null;
 
-        return track;
+        return track as ValueTriggerTrack<Value>;
     }
 
-    public createTrackWithStartValue(id: number, startValue: TriggerValue) {
+    public getTracks(): ValueTriggerTrack<Value>[] {
+        return this.tracks as ValueTriggerTrack<Value>[];
+    }
+
+    public createTrackWithStartValue(id: number, startValue: Value) {
         this.tracks[id] = new ValueTriggerTrack(startValue, this.level);
-    }
-
-    public valueAt(id: number, time: number): TriggerValue {
-        const track = this.tracks[id];
-        if (!track)
-            return this.defaultStartValue;
-
-        return track.valueAt(time);
-    }
-
-    public lastValueAt(id: number, time: number): TriggerValue {
-        const track = this.tracks[id];
-        if (!track)
-            return this.defaultStartValue;
-
-        return track.lastValueAt(time);
-    }
-
-    public combinedValueAt(id: number, time: number): TriggerValue {
-        const track = this.tracks[id];
-        if (!track)
-            return this.defaultStartValue;
-
-        return track.combinedValueAt(this.defaultStartValue, time);
     }
 }

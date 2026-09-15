@@ -34,7 +34,7 @@ export class RotateTrigger extends TransformTrigger {
     public applyTransform(transform: GroupTransform, info: TransformInfo): void {
         const angle = -this.getAngle() * info.movementAmount;
 
-        const center = info.state.getCenterGroupPosition(this.centerGroupId);
+        const center = info.getCenterGroupPosition(this.centerGroupId);
         if (!center) {
             transform.rotateOnlyObject(angle);
             return;

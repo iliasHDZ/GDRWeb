@@ -16,6 +16,7 @@ import { RotateTrigger } from './object/trigger/rotate-trigger';
 import { ScaleTrigger } from './object/trigger/scale-trigger';
 import { StopTrigger } from './object/trigger/stop-trigger';
 import { ToggleTrigger } from './object/trigger/toggle-trigger';
+import { SpawnTrigger } from './object/trigger/spawn-trigger';
 
 import { Vec2 } from './util/vec2';
 import { Color } from './util/color';
@@ -40,6 +41,7 @@ export {
     ScaleTrigger,
     StopTrigger,
     ToggleTrigger,
+    SpawnTrigger,
     
     Vec2,
     Color

@@ -1,37 +1,21 @@
 import { GameObject, ObjectProperties, ObjectPropertyReader } from "./object/object";
-import { PortalSpeed, SpeedPortal } from "./object/speed-portal";
-import { ColorTrigger, ColorTriggerValue } from "./object/trigger/color-trigger";
-import { AlphaTrigger } from "./object/trigger/alpha-trigger";
-import { PulseTargetType, PulseTrigger, PulseTriggerValue } from "./object/trigger/pulse-trigger";
-import { MoveTrigger } from "./object/trigger/move-trigger";
-import { ToggleTrigger } from "./object/trigger/toggle-trigger";
+import { PortalSpeed } from "./object/speed-portal";
 import { StopTrigger } from "./object/trigger/stop-trigger";
 import { Renderer } from "./renderer";
 import { Color } from "./util/color";
-import { GDColor } from "./util/gdcolor";
-import { BaseColor } from "./util/basecolor";
-import { PlayerColor } from "./util/playercolor";
-import { CopyColor } from "./util/copycolor";
-import { ValueTriggerTrack, ValueTriggerTrackList } from "./track/value-trigger-track";
 import { GroupManager } from "./group-manager";
-import { HSVShift, hsv2rgb, rgb2hsv } from "./util/hsvshift";
 import { ObjectHSVManager } from "./objecthsv";
-import { ValueTrigger } from "./object/trigger/value-trigger";
-import { Profiler } from "./profiler";
 import { StopTriggerTrackList } from "./track/stop-trigger-track";
 import { GameState } from "./game-state";
 import { LevelDecoder, LevelFileExtension } from "./level-decoder";
-
 import { TransformManager } from "./transform/transform-manager";
-import { RotateTrigger } from "./object/trigger/rotate-trigger";
 import { LevelGraphics } from "./level-graphics";
 import { SpeedManager } from "./speed-manager";
 import { Trigger } from "./object/trigger/trigger";
-import { TriggerTrackList } from "./track/trigger-track";
+import { ITriggerTrackList } from "./track/trigger-track";
 import { ColorManager } from "./color-manager";
 import { Vec2 } from "./util/vec2";
-
-const LOADING_STEPS_COUNT = 10;
+import { TriggerSimulator } from "./trigger-simulator";
 
 export enum ColorChannel {
     BG = 1000,
@@ -63,6 +47,8 @@ export class Level {
     public groupManager: GroupManager;
     public transformManager: TransformManager;
 
+    simulator: TriggerSimulator;
+
     objectHSVManager: ObjectHSVManager;
     objectHSVsLoaded: boolean = false;
 
@@ -78,6 +64,8 @@ export class Level {
         this.groupManager = new GroupManager(this);
         this.transformManager = new TransformManager(this, this.groupManager);
         this.objectHSVManager = new ObjectHSVManager(this);
+
+        this.simulator = new TriggerSimulator(this);
         
         this.stopTrackList = new StopTriggerTrackList(this);
     }
@@ -208,10 +196,12 @@ export class Level {
         return this.colorManager.colorAtPos(ch, x);
     }
 
+/*
     public updateStopActions(id: number | null = null) {
         this.colorManager.updateStopActions(id);
         this.groupManager.updateStopActions(id);
     }
+*/
 
     gameStateAtPos(pos: number): GameState {
         let approxYPos = 0;
@@ -234,7 +224,7 @@ export class Level {
         return new Vec2(posX, state.approxYPos);
     }
 
-    public getTrackListForTrigger(trigger: Trigger): TriggerTrackList | null {
+    public getTrackListForTrigger(trigger: Trigger): ITriggerTrackList | null {
         if (trigger instanceof StopTrigger)
             return this.stopTrackList;
 
@@ -287,8 +277,13 @@ export class Level {
         this.groupManager.loadGroups();
         this.groupManager.compressLargeGroupCombinations(4);
 
+        const simulateTimeLimit = this.timeAt(this.lastObjectXPosition) + 10;
+
+        this.simulator.init();
+        this.simulator.simulateUntil(simulateTimeLimit);
+
         this.transformManager.prepare();
-        this.transformManager.simulateUntil(this.timeAt(this.lastObjectXPosition));
+        this.transformManager.simulateUntil(simulateTimeLimit);
 
         this.objectHSVManager.reset();
         this.objectHSVManager.loadObjectHSVs();

@@ -1,75 +1,26 @@
 import { Level } from "../level";
-import { StopTrigger } from "../object/trigger/stop-trigger";
-import { Trigger } from "../object/trigger/trigger";
-import { TriggerAction, TriggerTrack, TriggerTrackList } from "./trigger-track";
+import { Trigger, TriggerAction } from "../object/trigger/trigger";
+import { TriggerTrack, TriggerTrackList } from "./trigger-track";
 
-class StopTriggerExecution extends TriggerAction {
-    constructor(trigger: StopTrigger, time: number) {
-        super(trigger, time);
-    }
-}
-
-export class StopTriggerTrack extends TriggerTrack {
-    public executions: StopTriggerExecution[];
-
-    constructor(level: Level) {
-        super(level);
-        this.executions = [];
-    }
-
-    protected getActions(): TriggerAction[] {
-        return this.executions;
-    }
-
-    protected createAction(trigger: Trigger, time: number): TriggerAction | null {
-        if (!(trigger instanceof StopTrigger))
-            return null;
-
-        return new StopTriggerExecution(trigger, time);
-    }
-
-    public nextExecutionAfter(time: number): StopTriggerExecution | null {
-        for (let exec of this.executions) {
-            if (exec.time > time)
-                return exec;
-        }
-
-        return null;
-    }
-}
-
-export class StopTriggerTrackList extends TriggerTrackList {
-    public tracks: { [id: number]: StopTriggerTrack } = {};
-
+export class StopTriggerTrackList extends TriggerTrackList<TriggerAction> {
     constructor(level: Level) {
         super(level);
     }
 
-    protected getTracks(): { [id: number]: TriggerTrack; } {
-        return this.tracks;
-    }
-
-    protected createTrack(): TriggerTrack {
-        return new StopTriggerTrack(this.level);
-    }
-
-    public nextExecutionAfter(id: number, time: number): StopTriggerExecution | null {
-        if (!this.tracks[id])
-            return null;
-
-        return this.tracks[id].nextExecutionAfter(time);
+    protected override createTrack(id: number): TriggerTrack<TriggerAction> {
+        return new TriggerTrack<TriggerAction>(this.level, id);
     }
 
     public getTriggerStopTime(trigger: Trigger, time: number): number | null {
         let stoppedAt: number | null = null;
 
         for (let gid of trigger.groups) {
-            const exec = this.nextExecutionAfter(gid, time);
-            if (exec != null) {
+            const action = this.nextActionAfter(gid, time);
+            if (action != null) {
                 if (stoppedAt == null)
-                    stoppedAt = exec.time;
+                    stoppedAt = action.time;
                 else
-                    stoppedAt = Math.min(stoppedAt, exec.time);
+                    stoppedAt = Math.min(stoppedAt, action.time);
             }
         }
 

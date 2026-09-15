@@ -1,24 +1,24 @@
-import { Util } from "../../util/util";
-import { GameObject, ObjectProperties } from "../object";
-import { AlphaTriggerValue } from "./alpha-trigger";
-import { Trigger } from "./trigger";
+import { ValueTriggerAction } from "../../track/value-trigger-track";
+import { Trigger, TriggerAction } from "./trigger";
 
 /*
-    The TriggerValue is the abstract object that represent the value that the ValueTrigger changes.
-    Read ValueTrigger for more info.
-*/
-export class TriggerValue {
-    combineWith(_: TriggerValue): TriggerValue | null {
-        return null;
-    }
-}
-
-/*
-    A ValueTrigger is an abstract object that changes a specific value over a duration.
+    A ValueTrigger is an abstract Trigger that changes a specific value over a duration.
     Examples include: ColorTrigger, PulseTrigger, AlphaTrigger...
 */
-export abstract class ValueTrigger extends Trigger {
-    public abstract valueAfterDelta(startValue: TriggerValue, deltaTime: number, startTime: number): TriggerValue;
+export abstract class ValueTrigger<T> extends Trigger {
+    public abstract valueAfterDelta(startValue: T, deltaTime: number, startTime: number): T;
 
     public abstract getDuration(): number;
+
+    public doesValueAfterActionDependOnTheValueBeforeIt(): boolean {
+        return true;
+    }
+
+    public shouldCombineValues(): boolean {
+        return false;
+    }
+
+    public override createAction(time: number): TriggerAction {
+        return new ValueTriggerAction<T>(this, time);
+    }
 }

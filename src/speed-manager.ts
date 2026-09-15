@@ -13,7 +13,7 @@ export class SpeedManager {
     timeAt(x: number): number {
         let sec = 0, lx = 15, spd = SpeedPortal.getSpeed(this.startSpeed);
 
-        for (let sp of this.speedPortals.array) {
+        for (let sp of this.speedPortals._array) {
             if (sp.x >= x)
                 break;
 
@@ -32,7 +32,7 @@ export class SpeedManager {
     posAt(s: number): number {
         let sec = 0, lx = 15, spd = SpeedPortal.getSpeed(this.startSpeed);
 
-        for (let sp of this.speedPortals.array) {
+        for (let sp of this.speedPortals._array) {
             let delta = sp.x - lx;
             if (delta < 0) continue;
 

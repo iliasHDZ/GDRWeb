@@ -1,104 +1,86 @@
 import { Level } from "../level";
-import { GameObject } from "../object/object";
-import { Trigger } from "../object/trigger/trigger";
+import { Trigger, TriggerAction } from "../object/trigger/trigger";
 
-export class TriggerAction {
-    time: number;
-    trigger: Trigger;
-
-    constructor(trigger: Trigger, time: number) {
-        this.trigger = trigger;
-        this.time    = time;
-    }
-}
-
-export abstract class TriggerTrack {
+export class TriggerTrack<Action extends TriggerAction> {
     protected level: Level;
     protected trackId: number;
-    protected trackList?: TriggerTrackList;
+    protected actions: Action[] = [];
 
-    constructor(level: Level, trackId: number = 0, trackList?: TriggerTrackList) {
+    constructor(level: Level, trackId: number = 0) {
         this.level = level;
         this.trackId = trackId;
-        this.trackList = trackList;
     }
 
-    protected abstract getActions(): TriggerAction[];
+    public getActions(): Action[] {
+        return this.actions;
+    }
 
-    protected abstract createAction(trigger: Trigger, time: number): TriggerAction | null;
-
-    public activateTriggerAt(trigger: Trigger, time: number): number {
-        const exec = this.createAction(trigger, time);
-        if (exec == null)
-            return 0;
-
-        const execs = this.getActions();
-
-        for (let i = 0; i < execs.length; i++) {
-            if (execs[i].time > time) {
-                execs.splice(i, 0, exec);
+    public insertAction(action: Action): number {
+        for (let i = 0; i < this.actions.length; i++) {
+            if (this.actions[i].time > action.time) {
+                this.actions.splice(i, 0, action);
                 return i;
             }
         }
 
-        trigger.addTrack(this);
-
-        execs.push(exec);
-        return execs.length - 1;
+        this.actions.push(action);
+        return this.actions.length - 1;
     }
 
-    public removeTrigger(trigger: Trigger): number | null {
-        const execs = this.getActions();
-
-        let idx: number | null = null;
-        for (let i = 0; i < execs.length; i++) {
-            if (execs[i].trigger == trigger) {
-                idx = i;
-                break;
-            }
+    public nextActionAfter(time: number): Action | null {
+        for (let action of this.actions) {
+            if (action.time > time)
+                return action;
         }
 
-        trigger.removeTrack(this);
-
-        if (idx == null)
-            return null;
-
-        execs.splice(idx, 1);
-        return idx;
+        return null;
     }
 }
 
-export abstract class TriggerTrackList {
+export interface ITriggerTrackList {
+    insertActionById(id: number, action: TriggerAction): void;
+
+    insertAction(action: TriggerAction): void;
+};
+
+export abstract class TriggerTrackList<Action extends TriggerAction> implements ITriggerTrackList {
     level: Level;
+    tracks: { [id: number]: TriggerTrack<Action> } = {};
 
     constructor(level: Level) {
         this.level = level;
     }
 
-    protected abstract getTracks(): { [id: number]: TriggerTrack };
+    protected abstract createTrack(id: number): TriggerTrack<Action>;
 
-    protected abstract createTrack(id: number): TriggerTrack;
-
-    public insertTriggerById(id: number, trigger: Trigger, time: number) {
+    public insertActionById(id: number, action: TriggerAction) {
         if (id == 0)
             return;
 
-        const tracks = this.getTracks();
+        if (!this.tracks[id])
+            this.tracks[id] = this.createTrack(id);
 
-        if (!tracks[id])
-            tracks[id] = this.createTrack(id);
-
-        tracks[id].activateTriggerAt(trigger, time);
+        this.tracks[id].insertAction(action as Action);
     }
 
-    public insertTrigger(trigger: Trigger, time: number) {
-        const id = trigger.getTriggerTrackId();
+    public insertAction(action: TriggerAction) {
+        let id = action.trigger.getTriggerTrackId();
         if (id == null) {
             console.error("Trigger does not return track id");
-            console.log(trigger);
+            console.log(action.trigger);
             return;
         }
 
-        this.insertTriggerById(id, trigger, time);
+        if (action.trigger.isTrackIdGroupId())
+            id = action.remapGroupId(id);
+
+        this.insertActionById(id, action);
+    }
+
+    public nextActionAfter(id: number, time: number): Action | null {
+        if (!this.tracks[id])
+            return null;
+
+        return this.tracks[id].nextActionAfter(time);
     }
 }

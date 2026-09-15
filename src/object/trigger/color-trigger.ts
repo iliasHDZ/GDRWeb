@@ -4,20 +4,7 @@ import { GDColor } from "../../util/gdcolor";
 import { MixedColor } from "../../util/mixedcolor";
 import { PlayerColor } from "../../util/playercolor";
 import { ObjectPropertyReader } from "../object";
-import { TriggerValue, ValueTrigger } from "./value-trigger";
-
-export class ColorTriggerValue extends TriggerValue {
-    public color: GDColor;
-
-    constructor(color: GDColor) {
-        super();
-        this.color = color;
-    }
-
-    static default(): ColorTriggerValue {
-        return new ColorTriggerValue(BaseColor.white());
-    }
-};
+import { ValueTrigger } from "./value-trigger";
 
 const COLOR_TRIGGER_IDS: { [id: number]: number } = {
     [29]:  1000,
@@ -34,7 +21,7 @@ const COLOR_TRIGGER_IDS: { [id: number]: number } = {
     [915]: 1,
 };
 
-export class ColorTrigger extends ValueTrigger {
+export class ColorTrigger extends ValueTrigger<GDColor> {
     target: GDColor = BaseColor.white();
 
     colorChannelId: number = 1;
@@ -73,22 +60,22 @@ export class ColorTrigger extends ValueTrigger {
             this.colorChannelId = COLOR_TRIGGER_IDS[this.id] ?? 1;
     }
 
-    getTriggerTrackId(): number {
+    public override getTriggerTrackId(): number {
         return this.colorChannelId;
     }
 
-    public valueAfterDelta(startValue: TriggerValue, deltaTime: number, _: number): TriggerValue {
-        let startColor: GDColor = BaseColor.white();
-        if (startValue instanceof ColorTriggerValue)
-            startColor = startValue.color;
-
-        if (deltaTime >= this.duration)
-            return new ColorTriggerValue(this.target);
-
-        return new ColorTriggerValue(MixedColor.mix(startColor, this.target, deltaTime / this.duration));
+    public override isTrackIdGroupId(): boolean {
+        return false;
     }
 
-    public getDuration(): number {
+    public override valueAfterDelta(startColor: GDColor, deltaTime: number, _: number): GDColor {
+        if (deltaTime >= this.duration)
+            return this.target;
+
+        return MixedColor.mix(startColor, this.target, deltaTime / this.duration);
+    }
+
+    public override getDuration(): number {
         return this.duration;
     }
 

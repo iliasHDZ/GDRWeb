@@ -1,6 +1,6 @@
 import { ObjectInfo, SpriteColorType, ZLayer } from "./info/object-info";
 import { Mat3 } from "../util/mat3";
-import { AlphaTrigger, ColorTrigger, Level, MoveTrigger, PulseTrigger, RotateTrigger, ScaleTrigger, SpeedPortal, StopTrigger, ToggleTrigger, Vec2 } from "..";
+import { AlphaTrigger, ColorTrigger, Level, MoveTrigger, PulseTrigger, RotateTrigger, ScaleTrigger, SpeedPortal, StopTrigger, ToggleTrigger, SpawnTrigger, Vec2 } from "..";
 import { HSVShift } from "../util/hsvshift";
 import object_types from "../../assets/object_types.json";
 import objectDataList from '../../assets/object.json';
@@ -239,6 +239,7 @@ export class GameObject {
         else if (ScaleTrigger.isOfType(id))  obj = new ScaleTrigger(id);
         else if (ToggleTrigger.isOfType(id)) obj = new ToggleTrigger(id);
         else if (StopTrigger.isOfType(id))   obj = new StopTrigger(id);
+        else if (SpawnTrigger.isOfType(id))  obj = new SpawnTrigger(id);
         else
             obj = new GameObject(id);
 

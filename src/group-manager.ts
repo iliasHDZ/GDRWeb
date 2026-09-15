@@ -1,9 +1,9 @@
-import { AlphaTrigger, AlphaTriggerValue } from "./object/trigger/alpha-trigger";
-import { ToggleTrigger, ToggleTriggerValue } from "./object/trigger/toggle-trigger";
+import { AlphaTrigger } from "./object/trigger/alpha-trigger";
+import { ToggleTrigger } from "./object/trigger/toggle-trigger";
 import { ValueTriggerTrackList } from "./track/value-trigger-track";
-import { PulseTargetType, PulseTrigger, PulseTriggerValue } from "./object/trigger/pulse-trigger";
+import { PulseTargetType, PulseTrigger } from "./object/trigger/pulse-trigger";
 import { PulseList } from "./pulse/pulse-list";
-import { TriggerTrackList } from "./track/trigger-track";
+import { ITriggerTrackList, TriggerTrackList } from "./track/trigger-track";
 import { Trigger } from "./object/trigger/trigger";
 import { Level } from "./level";
 
@@ -74,26 +74,26 @@ export class GroupManager {
 
     largestGroupId: number = 0;
 
-    alphaTrackList: ValueTriggerTrackList;
-    toggleTrackList: ValueTriggerTrackList;
-    pulseTrackList: ValueTriggerTrackList;
+    alphaTrackList: ValueTriggerTrackList<number>;
+    toggleTrackList: ValueTriggerTrackList<boolean>;
+    pulseTrackList: ValueTriggerTrackList<PulseList>;
 
     level: Level;
 
     constructor(level: Level) {
         this.level = level;
-        this.alphaTrackList  = new ValueTriggerTrackList(this.level, AlphaTriggerValue.default());
-        this.toggleTrackList = new ValueTriggerTrackList(this.level, ToggleTriggerValue.default());
-        this.pulseTrackList  = new ValueTriggerTrackList(this.level, PulseTriggerValue.default());
+        this.alphaTrackList  = new ValueTriggerTrackList<number>(this.level, 1);
+        this.toggleTrackList = new ValueTriggerTrackList<boolean>(this.level, true);
+        this.pulseTrackList  = new ValueTriggerTrackList<PulseList>(this.level, new PulseList());
 
         this.reset();
     }
 
     reset() {
         // Yeah duplicate code I know, not sure what the best way is to fix this
-        this.alphaTrackList  = new ValueTriggerTrackList(this.level, AlphaTriggerValue.default());
-        this.toggleTrackList = new ValueTriggerTrackList(this.level, ToggleTriggerValue.default());
-        this.pulseTrackList  = new ValueTriggerTrackList(this.level, PulseTriggerValue.default());
+        this.alphaTrackList  = new ValueTriggerTrackList<number>(this.level, 1);
+        this.toggleTrackList = new ValueTriggerTrackList<boolean>(this.level, true);
+        this.pulseTrackList  = new ValueTriggerTrackList<PulseList>(this.level, new PulseList());
 
         this.doubleGroups = {};
         this.lastDoubleGroupId = 0;
@@ -104,11 +104,13 @@ export class GroupManager {
         this.largestGroupId = 0;
     }
 
+/*
     public updateStopActions(id: number | null = null) {
         this.alphaTrackList.updateStopActions(id);
         this.toggleTrackList.updateStopActions(id);
         this.pulseTrackList.updateStopActions(id);
     }
+*/
 
     getGroupCombinationIdx(groups: number[]): number | null {
         for (let [k, v] of Object.entries(this.groupCombs))
@@ -130,21 +132,15 @@ export class GroupManager {
     }
 
     getAlphaValueAtTime(groupId: number, time: number): number {
-        const value = this.alphaTrackList.valueAt(groupId, time);
-        let res = 1;
-        if (value instanceof AlphaTriggerValue)
-            res = value.alpha;
-
-        return res;
+        return this.alphaTrackList.get(groupId)?.valueAt(time) ?? 1;
     }
 
     getActiveValueAtTime(groupId: number, time: number): boolean {
-        const value = (this.toggleTrackList.lastValueAt(groupId, time) as ToggleTriggerValue).active;
-        return value;
+        return this.toggleTrackList.get(groupId)?.valueAt(time) ?? true;
     }
 
     getPulseListAtTime(groupId: number, time: number): PulseList {
-        return (this.pulseTrackList.combinedValueAt(groupId, time) as PulseTriggerValue).toPulseList();
+        return this.pulseTrackList.get(groupId)?.combinedValueAt(time) ?? new PulseList();
     }
 
     getGroupStateAt(groupId: number, time: number): GroupState {
@@ -186,7 +182,7 @@ export class GroupManager {
         this.lastDoubleGroupId = this.startDoubleGroupIds;
     }
 
-    public getTrackListForTrigger(trigger: Trigger): TriggerTrackList | null {
+    public getTrackListForTrigger(trigger: Trigger): ITriggerTrackList | null {
         if (trigger instanceof AlphaTrigger)
             return this.alphaTrackList;
 

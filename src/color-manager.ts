@@ -1,10 +1,11 @@
-import { Level, ValueTrigger } from ".";
+import { Level } from ".";
 import { ColorChannel } from "./level";
 import { GameObject, ObjectPropertyReader } from "./object/object";
-import { ColorTrigger, ColorTriggerValue } from "./object/trigger/color-trigger";
-import { PulseTargetType, PulseTrigger, PulseTriggerValue } from "./object/trigger/pulse-trigger";
+import { ColorTrigger } from "./object/trigger/color-trigger";
+import { PulseTargetType, PulseTrigger } from "./object/trigger/pulse-trigger";
 import { Trigger } from "./object/trigger/trigger";
-import { TriggerTrackList } from "./track/trigger-track";
+import { PulseList } from "./pulse/pulse-list";
+import { ITriggerTrackList } from "./track/trigger-track";
 import { ValueTriggerAction, ValueTriggerTrack, ValueTriggerTrackList } from "./track/value-trigger-track";
 import { BaseColor } from "./util/basecolor";
 import { Color } from "./util/color";
@@ -26,8 +27,8 @@ function copyBlendingStates(obj: { [channel: number]: boolean }): { [channel: nu
 }
 
 export class ColorManager {
-    private colorTrackList: ValueTriggerTrackList;
-    private pulseTrackList: ValueTriggerTrackList;
+    private colorTrackList: ValueTriggerTrackList<GDColor>;
+    private pulseTrackList: ValueTriggerTrackList<PulseList>;
 
     private level: Level;
 
@@ -36,8 +37,8 @@ export class ColorManager {
     constructor(level: Level) {
         this.level = level;
 
-        this.colorTrackList = new ValueTriggerTrackList(level, ColorTriggerValue.default());
-        this.pulseTrackList = new ValueTriggerTrackList(level, PulseTriggerValue.default());
+        this.colorTrackList = new ValueTriggerTrackList<GDColor>(level, BaseColor.white());
+        this.pulseTrackList = new ValueTriggerTrackList<PulseList>(level, new PulseList());
     }
 
     public parseStartColor(str: string) {
@@ -79,10 +80,10 @@ export class ColorManager {
     }
 
     public calculateBlendingStates() {
-        const colorActions: ValueTriggerAction[] = [];
+        const colorActions: ValueTriggerAction<GDColor>[] = [];
 
-        for (const track of Object.values(this.colorTrackList.tracks))
-            for (const action of track.actions)
+        for (const track of Object.values(this.colorTrackList.getTracks()))
+            for (const action of track.getActions())
                 colorActions.push(action);
 
         colorActions.sort((a, b) => a.time - b.time);
@@ -91,8 +92,9 @@ export class ColorManager {
 
         for (let i = 1; i < +ColorChannel.COUNT; i++) {
             blendingStates[i] = false;
-            if (this.colorTrackList.tracks[i])
-                blendingStates[i] = (this.colorTrackList.tracks[i].startValue as ColorTriggerValue).color.blending;
+            const startValue = this.getStartColor(i);
+            if (startValue)
+                blendingStates[i] = startValue.blending;
         }
 
         this.blendingStates.push({startTime: -9999999, states: copyBlendingStates(blendingStates)});
@@ -129,23 +131,27 @@ export class ColorManager {
         return this.blendingStates.length - 1;
     }
 
+/*
     public updateStopActions(id: number | null = null) {
         this.colorTrackList.updateStopActions(id);
         this.pulseTrackList.updateStopActions(id);
     }
+*/
 
     public setStartColor(channelId: number, color: GDColor) {
         const track = this.colorTrackList.get(channelId);
-        if (track)
-            track.startValue = new ColorTriggerValue(color);
+        if (track) {
+            track.startValue = color;
+            return;
+        }
 
-        this.colorTrackList.createTrackWithStartValue(channelId, new ColorTriggerValue(color));
+        this.colorTrackList.createTrackWithStartValue(channelId, color);
     }
 
     public getStartColor(channelId: number): GDColor | null {
         const track = this.colorTrackList.get(channelId);
-        if (track && track.startValue instanceof ColorTriggerValue)
-            return track.startValue.color;
+        if (track && track.startValue)
+            return track.startValue;
 
         return null;
     }
@@ -163,12 +169,7 @@ export class ColorManager {
     }
 
     private gdColorAt(ch: number, time: number): GDColor {
-        const col = this.colorTrackList.valueAt(ch, time);
-
-        if (!(col instanceof ColorTriggerValue))
-            return BaseColor.white();
-
-        return col.color;
+        return this.colorTrackList.get(ch)?.valueAt(time) ?? BaseColor.white();
     }
 
     public colorAtTime(ch: number, time: number, iterations: number = 8): [Color, boolean] {
@@ -179,8 +180,9 @@ export class ColorManager {
             [color, blending] = this.gdColorAt(ch, time).evaluate(this.level, time, iterations);
         }
 
-        const pulse = this.pulseTrackList.combinedValueAt(ch, time) as PulseTriggerValue;
-        color = pulse.applyToColor(color);
+        const pulse = this.pulseTrackList.get(ch)?.combinedValueAt(time);
+        if (pulse)
+            color = pulse.applyToColor(color);
 
         return [
             color,
@@ -192,7 +194,7 @@ export class ColorManager {
         return this.colorAtTime(ch, this.level.timeAt(x));
     }
 
-    public getTrackListForTrigger(trigger: Trigger): TriggerTrackList | null {
+    public getTrackListForTrigger(trigger: Trigger): ITriggerTrackList | null {
         if (trigger instanceof ColorTrigger)
             return this.colorTrackList;
 
@@ -215,9 +217,9 @@ export class ColorManager {
             return action.trigger.target.blending;
         }
 
-        if (!(track.startValue instanceof ColorTriggerValue))
+        if (!track.startValue)
             return false;
 
-        return track.startValue.color.blending;
+        return track.startValue.blending;
     }
 };

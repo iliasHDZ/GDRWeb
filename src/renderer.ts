@@ -272,6 +272,6 @@ export class Renderer {
         if (this.ctx.prepareRender(ctxopts))
             gfx.render(level.colorManager.getBlendingStatesIdAtTime(currentTime));
         // this.renderGround(level, currentTime);
-        // this.ctx.renderGrid(new Vec2(this.camera.x, this.camera.y), this.camera.getCameraWorldSize(), 1 / this.camera.zoom);
+        this.ctx.renderGrid(new Vec2(this.camera.x, this.camera.y), this.camera.getCameraWorldSize(), 1 / this.camera.zoom);
     }
 }

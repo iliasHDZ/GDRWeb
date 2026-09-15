@@ -89,26 +89,8 @@ export class TransformManager {
         return ret;
     }
 
-    activateTriggerAt(trigger: TransformTrigger, time: number) {
-        const action = new TransformAction(trigger, time);
-
-        const stopTime = this.level.stopTrackList.getTriggerStopTime(trigger, time);
-        if (stopTime)
-            action.setStopTime(stopTime);
-
+    addAction(action: TransformAction) {
         this.simulator.addAction(action);
-    }
-
-    loadAllTriggers() {
-        for (let obj of this.level.getObjects()) {
-            if (!(obj instanceof TransformTrigger))
-                continue;
-
-            if (obj.spawnTriggered || obj.touchTriggered)
-                continue;
-
-            this.activateTriggerAt(obj, this.level.timeAt(obj.x));
-        }
     }
 
     private fetchCenterGroupObjects() {
@@ -166,8 +148,6 @@ export class TransformManager {
         }
 
         this.simulator.init();
-
-        this.loadAllTriggers();
 
         this.simulator.prepareActions();
     }

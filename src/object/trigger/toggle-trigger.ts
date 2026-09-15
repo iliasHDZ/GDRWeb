@@ -1,20 +1,7 @@
-import { GameObject, ObjectProperties, ObjectPropertyReader } from "../object";
-import { TriggerValue, ValueTrigger } from "./value-trigger";
+import { ValueTrigger } from "../..";
+import { ObjectPropertyReader } from "../object";
 
-export class ToggleTriggerValue extends TriggerValue {
-    public active: boolean;
-
-    constructor(active: boolean) {
-        super();
-        this.active = active;
-    }
-
-    static default(): ToggleTriggerValue {
-        return new ToggleTriggerValue(true);
-    }
-}
-
-export class ToggleTrigger extends ValueTrigger {
+export class ToggleTrigger extends ValueTrigger<boolean> {
     activeGroup: boolean = false;
     targetGroupId: number = 0;
 
@@ -25,15 +12,19 @@ export class ToggleTrigger extends ValueTrigger {
         this.targetGroupId = rd.number(51, 0);
     }
 
-    getTriggerTrackId(): number {
+    public override getTriggerTrackId(): number {
         return this.targetGroupId;
     }
 
-    public valueAfterDelta(_1: TriggerValue, _2: number, _3: number): TriggerValue {
-        return new ToggleTriggerValue(this.activeGroup);
+    public override valueAfterDelta(_1: boolean, _2: number, _3: number): boolean {
+        return this.activeGroup;
     }
 
-    public getDuration(): number {
+    public doesValueAfterActionDependOnTheValueBeforeIt(): boolean {
+        return false;
+    }
+
+    public override getDuration(): number {
         return 0;
     }
 

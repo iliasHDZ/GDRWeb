@@ -1,34 +1,46 @@
 export class SortedList<T> {
-    array: T[];
+    _array: T[];
     
     compareFn: (a: T, b: T) => number;
     
     constructor(compareFn: (a: T, b: T) => number) {
-        this.array = [];
+        this._array = [];
 
         this.compareFn = compareFn;
     }
 
+    get array(): readonly T[] {
+        return this._array;
+    }
+
+    get length(): number {
+        return this._array.length;
+    }
+
     push(element: T): number {
-        for (let i = 0; i < this.array.length; i++) {
-            if (this.compareFn(element, this.array[i]) < 0) {
-                this.array.splice(i, 0, element);
+        for (let i = 0; i < this._array.length; i++) {
+            if (this.compareFn(element, this._array[i]) < 0) {
+                this._array.splice(i, 0, element);
                 return i;
             }
         }
 
-        this.array.push(element);
-        return this.array.length - 1;
+        this._array.push(element);
+        return this._array.length - 1;
+    }
+
+    removeIndex(index: number): void {
+        this._array.splice(index, 1);
     }
 
     remove(element: T): void {
-        const idx = this.array.indexOf(element);
-        if (idx == -1) return;
+        const index = this._array.indexOf(element);
+        if (index == -1) return;
 
-        this.array.splice(idx, 1);
+        this.removeIndex(index);
     }
 
     at(index: number): T {
-        return this.array[index];
+        return this._array[index];
     }
 }

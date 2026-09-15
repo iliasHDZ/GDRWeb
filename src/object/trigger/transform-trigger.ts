@@ -1,8 +1,8 @@
 import { GroupTransform } from "../../transform/group-transform";
-import { TransformInfo } from "../../transform/transform";
+import { TransformAction, TransformInfo } from "../../transform/transform";
 import { EasingStyle, easingFunction } from "../../util/easing";
 import { GameObject, ObjectProperties, ObjectPropertyReader } from "../object";
-import { Trigger } from "./trigger";
+import { Trigger, TriggerAction } from "./trigger";
 
 export abstract class TransformTrigger extends Trigger {
     easing: EasingStyle = EasingStyle.NONE;
@@ -34,6 +34,10 @@ export abstract class TransformTrigger extends Trigger {
 
     public getDuration(): number {
         return this.duration;
+    }
+    
+    public createAction(time: number): TriggerAction {
+        return new TransformAction(this, time);
     }
 
     public abstract applyTransform(transform: GroupTransform, info: TransformInfo): void;

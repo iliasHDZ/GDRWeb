@@ -54,7 +54,7 @@ export class ScaleTrigger extends TransformTrigger {
             Util.lerp(1, scale.y, movementEndRatio) / Util.lerp(1, scale.y, info.movementStartRatio),
         );
 
-        const center = info.state.getCenterGroupPosition(this.centerGroupId);
+        const center = info.getCenterGroupPosition(this.centerGroupId);
         if (!center) {
             transform.scaleOnlyObject(scale);
             return;
