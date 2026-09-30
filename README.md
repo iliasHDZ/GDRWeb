@@ -1,7 +1,7 @@
 # GDRWeb
 A Geometry Dash Level Rendering Engine for the web.
 
-**THIS PROJECT CANNOT BE USED UNDER ANY CIRCUMSTANCES TO FACILITATE OR ADVANCE GEOMETRY DASH LEVEL GENERATION USING GENERATIVE AI**
+**THIS PROJECT CANNOT BE USED UNDER ANY CIRCUMSTANCES TO FACILITATE OR ADVANCE GEOMETRY DASH LEVEL GENERATION OR MODIFICATION USING GENERATIVE AI.**
 
 ## What is GDRWeb?
 It is a work-in-progress rendering engine for rendering Geometry Dash levels on web-based applications. The engine is written in Typescript and currently only supports WebGL 2.0. However, rendering contexts are easily expandable. GDRWeb has the following features:
